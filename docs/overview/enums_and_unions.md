@@ -287,7 +287,7 @@ def main() -> Void {
 }
 ```
 
-The `tag` method will simply return `Void` if the union is tagless.
+The `tag` method will simply return `void` if the union is tagless.
 
 ## `is` operator
 
@@ -314,11 +314,11 @@ def pet_animal(animal: Animal) -> Void {
 With unions, the `is` operator can also give you access to the value of the union variable:
 
 ```mylang
-def get_name_if_cat(animal: Animal) -> ?Str {
+def get_name_if_cat(animal: Animal) -> Str {
     if (animal is Animal.Cat cat)
-        return ?cat.name;
+        return cat.name;
     else
-        return null;
+        return "Not a cat";
 }
 
 def get_name(animal: Animal) -> Str {
@@ -345,7 +345,7 @@ def Animal = union {
 }
 ```
 
-Even the variants can be anonymous:
+Even the variants can be structural:
 
 ```mylang
 def Animal = union {
