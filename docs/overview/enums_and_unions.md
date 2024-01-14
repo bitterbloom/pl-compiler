@@ -53,7 +53,7 @@ enum Fruit {
 ```
 
 The enum values don't have to be known at compile time.
-You could also use variables declared with the `var` keyword:
+You could also use mutable variables declared with the `var` keyword:
 
 ```mylang
 var apple  = "Apple";
@@ -67,7 +67,7 @@ enum Fruit {
 }
 
 def main() -> Void {
-    apple = "Pear";
+    apple = "Pear"; // Odd, but allowed
 }
 ```
 
