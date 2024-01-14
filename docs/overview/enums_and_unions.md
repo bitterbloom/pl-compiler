@@ -12,7 +12,7 @@ Enums are types that represents a set of named values.
 * **Enum tag type**: The type of the tag of an enum.
 * **Enum variable**: A variable that holds an enum variant.
 
-## Declaration
+## Declaring an enum
 
 An enum type can be declared with the `enum` keyword:
 
@@ -71,7 +71,7 @@ def main() -> Void {
 }
 ```
 
-## Variables
+## Enum variables
 
 If you define the enum variant within the enum declaration,
 then the variant identifier will live in the scope of the enum type:
@@ -103,7 +103,7 @@ def main() -> Void {
 }
 ```
 
-## Tag
+## Enum tag
 
 Enum variables are represented with a tag value.
 The type of the tag is `UInt8` by default and can be changed with the `tag` keyword like below.
@@ -140,7 +140,9 @@ def main() -> Void {
 }
 ```
 
-## `is` operator
+## Checking enum variants
+
+**TODO**: For enums, maybe we should use the `==` operator instead of `is`?
 
 To check which variant an enum variable holds, you can use the `is` operator:
 
@@ -214,7 +216,7 @@ Unions are types that represents values from a set of types.
 * **Union tag type**: The type of the tag of a union.
 * **Union variable**: A variable that holds a value from a union.
 
-## Declaration
+## Declaring a union
 
 A union type can be declared with the `union` keyword:
 
@@ -255,7 +257,7 @@ union Color {
 }
 ```
 
-## Tag
+## Union tag
 
 In addition to the value, a union variable also holds a tag value.
 As with enums, the type of the tag is `UInt8` by default and can be changed with the `tag` keyword.
@@ -289,7 +291,7 @@ def main() -> Void {
 
 The `tag` method will simply return `void` if the union is tagless.
 
-## `is` operator
+## Checking union variants
 
 To check which variant a union variable holds, you can use the `is` operator:
 
