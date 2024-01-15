@@ -2,8 +2,8 @@
 # Generics
 
 A generic function or type is a function or type that is generic over a compile-time parameter.
-Such compile-time parameter is usually a type, called a type parameter, but it can also be a value.
-That means that a generic function or type can be used with multiple types or other compile-time values.
+Such compile-time parameters are usually types, but can also be values.
+When a function or a type is generic over a type, then that type is called a type parameter.
 
 ## Terminology
 
