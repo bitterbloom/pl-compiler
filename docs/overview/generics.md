@@ -15,7 +15,7 @@ When a function or a type is generic over a type, then that type is called a typ
 
 ## Generic functions
 
-You could for example have a forget function that takes in a value of any type and returns nothing:
+You could for example have a forget function that takes in a value of *any* type and returns nothing:
 
 ```mylang
 def forget(_: Any) -> Void // Any is a trait that all types implement
@@ -49,6 +49,25 @@ def main() -> Void {
 
 Note that the type parameter must come before any other parameters that use the type.
 This is always the case for generic functions and types.
+
+## Type constraints
+
+So far we have shown functioned that are constrained by the `Any` trait, meaning that *any* type can be used.
+(This is actually not completely accurate, see the section **Implicit type constraints**.)
+If you replace the `Any` trait with, for example, the `Add` trait as a constraint, you can use the `+` operator.
+
+```mylang
+def add(a: T: Add, b: Add) -> T
+    return a + b;
+```
+
+A type parameter can have multiple constraints, which are separated by `+`:
+
+```mylang
+def print_default(T: Default + ToStr) -> Void {
+    println(T.default().to_str());
+}
+```
 
 ### Generic return types
 
@@ -98,6 +117,7 @@ struct Point(T: Num) {
 ```
 
 The `Point` type is generic over the type `T`, which must implement the `Num` trait.
+The `Num` trait requires that the type must implement the basic math operations such as `+` and `-`.
 The type `T` can then be used in the struct definition.
 
 You can also have generic enum and union types:
@@ -106,16 +126,6 @@ You can also have generic enum and union types:
 union Maybe(T: Any) {
     def Just = struct {value: T};
     def Nothing = struct {};
-}
-```
-
-## Multiple constraints
-
-A type parameter can have multiple constraints, which are separated by `+`:
-
-```mylang
-def print_default(T: Default + ToStr) -> Void {
-    println(T.default().to_str());
 }
 ```
 
@@ -189,3 +199,6 @@ def main() -> Void {
 Normally, the compiler wouldn't be able to fully infer the type of vec.
 The default parameters allows the compiler to assume that `n` is `2` and `T` is `Int`.
 
+## Implicit type constriants
+
+**TODO**
