@@ -50,25 +50,6 @@ def main() -> Void {
 Note that the type parameter must come before any other parameters that use the type.
 This is always the case for generic functions and types.
 
-## Type constraints
-
-So far we have shown functioned that are constrained by the `Any` trait, meaning that *any* type can be used.
-(This is actually not completely accurate, see the section **Implicit type constraints**.)
-If you replace the `Any` trait with, for example, the `Add` trait as a constraint, you can use the `+` operator.
-
-```mylang
-def add(a: T: Add, b: Add) -> T
-    return a + b;
-```
-
-A type parameter can have multiple constraints, which are separated by `+`:
-
-```mylang
-def print_default(T: Default + ToStr) -> Void {
-    println(T.default().to_str());
-}
-```
-
 ### Generic return types
 
 You can also declare a type parameter as the return type:
@@ -103,6 +84,24 @@ def get_to_str_value() -> some ToStr
 
 This is similar to how object-oriented languages tend to work when returning an object of some interface.
 Existential types won't be covered further in this document.
+
+## Type constraints
+
+So far we have mostly shown type parameters that are constrained by the `Any` trait.
+If you replace the `Any` trait with, for example, the `Add` trait as a constraint, you can use the `+` operator.
+
+```mylang
+def add(a: T: Add, b: Add) -> T
+    return a + b;
+```
+
+A type parameter can have multiple constraints, which are separated by `+`:
+
+```mylang
+def print_default(T: Default + ToStr) -> Void {
+    println(T.default().to_str());
+}
+```
 
 ## Generic types
 
