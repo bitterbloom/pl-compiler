@@ -1,5 +1,11 @@
 ### Git Ignore
 
+# Project
+/build
+/temp
+testrun
+pl-compiler
+
 # Nix
 result*
 

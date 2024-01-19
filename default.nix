@@ -10,15 +10,14 @@ pkgs.stdenv.mkDerivation {
     (import ./c3c.nix { inherit pkgs; })
   ];
 
-  buildInputs = with pkgs; [
-    lld
-    llvm
+  buildInputs = [
+    pkgs.qbe
   ];
 
   buildPhase = ''
     echo "building the compiler"
     mkdir -p $out/bin
-    c3c compile $src/main.c3 -o $out/bin/pl-compiler
+    c3c compile $src/* -o $out/bin/pl-compiler
   '';
 
   installPhase = ''
