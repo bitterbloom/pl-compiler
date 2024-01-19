@@ -22,6 +22,7 @@ clean:
 	@rm -f ./pl-compiler
 	@rm -f ./testrun
 	@rm -f ./temp/*
+	@rm -f ./result
 
 .PHONY: help build run test clean
 
