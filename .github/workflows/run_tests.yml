@@ -15,4 +15,4 @@ jobs:
         with:
           nix_pkgs: nixpkgs=channel:nixos-unstable
       - name: Build and Test
-      - run: nix-build
+        run: nix-build
