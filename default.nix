@@ -22,8 +22,7 @@ pkgs.stdenv.mkDerivation {
   buildPhase = ''
     echo "building the compiler"
     mkdir -p $out/bin
-    ls -R ${c3c}
-    ${c3c} compile $src/src/* -o $out/bin/pl-compiler
+    c3c compile $src/src/* -o $out/bin/pl-compiler
   '';
 
   # Check phase
