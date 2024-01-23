@@ -13,6 +13,6 @@ jobs:
       - name: Install Nix
         uses: cachix/install-nix-action@v25
         with:
-          nix_pkgs: nixpkgs=channel:nixos-unstable
+          nix_path: nixpkgs=channel:nixos-unstable
       - name: Build and Test
         run: nix-build
