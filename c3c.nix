@@ -6,7 +6,7 @@ pkgs.stdenv.mkDerivation {
 
   src = pkgs.fetchurl {
     url = "https://github.com/c3lang/c3c/releases/download/latest/c3-linux.tar.gz";
-    hash = "sha256-Zo3LgP/Op0GBHGptRMyLKYpnnRSy+uaUyAW4Rrdu2YM="; #"sha256-qYX9MAE1Xbih46Qw3XpWlkpTYfj6Z74wzKUTSaT8F00=";
+    hash = "sha256-Zo3LgP/Op0GBHGptRMyLKYpnnRSy+uaUyAW4Rrdu2YM=";
   };
 
   nativeBuildInputs = with pkgs; [

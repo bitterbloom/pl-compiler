@@ -1,4 +1,7 @@
 { pkgs ? import <nixpkgs> {} }:
+let
+  c3c = import ./c3c.nix { inherit pkgs; };
+in
 pkgs.stdenv.mkDerivation {
   pname = "pl-compiler";
   version = "0.0.0";
@@ -8,7 +11,7 @@ pkgs.stdenv.mkDerivation {
 
   # Build phase
   nativeBuildInputs = [
-    (import ./c3c.nix { inherit pkgs; })
+    c3c
   ];
 
   buildInputs = [
@@ -25,8 +28,9 @@ pkgs.stdenv.mkDerivation {
   # Check phase
   doCheck = true;
 
-  nativeCheckInputs = with pkgs; [
+  checkInputs = with pkgs; [
     gcc
+    c3c
   ];
 
   checkPhase = ''
