@@ -95,6 +95,7 @@ fn void! emit_fib(String input, String output) @private {
     compiler.prepare_compile_to(test_file_num)!;
 
     File* in = &&compiler.get_stdin();
+    //File* in = io::stdout();
     Data fmt = Data{
         .name = "fmt",
         .literals = Literal[]{

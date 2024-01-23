@@ -6,7 +6,7 @@ pkgs.stdenv.mkDerivation {
 
   src = pkgs.fetchurl {
     url = "https://github.com/c3lang/c3c/releases/download/latest/c3-linux.tar.gz";
-    hash = "sha256-qYX9MAE1Xbih46Qw3XpWlkpTYfj6Z74wzKUTSaT8F00=";
+    hash = "sha256-Zo3LgP/Op0GBHGptRMyLKYpnnRSy+uaUyAW4Rrdu2YM="; #"sha256-qYX9MAE1Xbih46Qw3XpWlkpTYfj6Z74wzKUTSaT8F00=";
   };
 
   nativeBuildInputs = with pkgs; [
@@ -19,10 +19,10 @@ pkgs.stdenv.mkDerivation {
     autoPatchelfHook
   ];
 
-  buildInputs = with pkgs; [
-    lld
-    llvm
-  ];
+  # buildInputs = with pkgs; [
+  #   lld
+  #   llvm
+  # ];
 
   installPhase = ''
     echo "installing the c3 compiler v0.5.3"
@@ -32,6 +32,5 @@ pkgs.stdenv.mkDerivation {
     mv $out/linux/lib/ $out/bin/lib/
     rm -r $out/linux/
     echo "auto-patching the c3 compiler elf"
-    #autoPatchelf $out/bin/c3c
   '';
 }
