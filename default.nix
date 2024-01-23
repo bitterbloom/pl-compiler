@@ -11,7 +11,6 @@ pkgs.stdenv.mkDerivation {
 
   # Build phase
   nativeBuildInputs = [
-    pkgs.autoPatchelfHook
     c3c
   ];
 
@@ -24,29 +23,24 @@ pkgs.stdenv.mkDerivation {
     echo "building the compiler"
     mkdir -p $out/bin
     c3c compile $src/src/* -o $out/bin/pl-compiler
-  '';
-
-  # Check phase
-  doCheck = true;
-
-  navtiveCheckInputs = [
-    c3c
-    #pkgs.gcc
-  ];
-
-  checkInputs = [
-    c3c
-  ];
-
-  checkPhase = ''
-    echo "testing the compiler"
     c3c test
   '';
 
-  # Install phase
-  dontInstall = true;
+  # Check phase
+  # doCheck = true;
 
+  # navtiveCheckInputs = [
+  #   pkgs.gcc
+  # ];
+
+  # checkPhase = ''
+  #   echo "testing the compiler"
+  #   c3c test
+  # '';
+
+  # Install phase
   installPhase = ''
+    echo "doing nothing"
   '';
 
 }
