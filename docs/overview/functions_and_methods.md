@@ -95,9 +95,10 @@ def main() -> Void {
 }
 ```
 
-In reality, function types are actually traits and the `call_twice` function is generic over the function type.
-When declaring a function, the compiler will create a new anonymous type for the function.
-That anonymous type will implement the function's trait and some other traits, like `Copy` and `Sized(..)`
+In reality, function types are actually [traits](./traits.md)
+and the `call_twice` function is generic over the function type.
+When declaring a function, the compiler will create a new [anonymous type](./anonymous_types.md) for the function.
+That anonymous type will implement the function's trait and some other traits, like `Copy` and `Sized`
 This allows the type system to know which concrete function is used when using functions as parameters.
 This, in turn, allows the compiler to make some optimizations, like inlining the function.
 
@@ -141,6 +142,15 @@ The previous examples shows methods that take in an `Int` as a value, but they c
 for ints: *[3]Int {
     def sum() -> Int
         return ints.get(0) + ints.get(1) + ints.get(2);
+}
+```
+
+In certain cases you might want to create short-lived aliases for the receiver type.
+This can be done with the [`as`](./type_aliases#As) keyword:
+
+```mylang
+for self: TypeWithLongName as Self {
+    def identity() -> Self return self;
 }
 ```
 

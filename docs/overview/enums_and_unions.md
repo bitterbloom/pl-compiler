@@ -24,8 +24,7 @@ enum Fruit {
 }
 ```
 
-In this case, the enum value type is `Str`.
-Though, it could be any type you want.
+In this case, the enum value type is `Str`. Though, it could be any type you want.
 You can specify the value type with the `of` keyword:
 
 ```mylang
@@ -52,6 +51,24 @@ enum Fruit {
 }
 ```
 
+This allows multiple enums to overlap in their variants.
+If you want to declare an enum that also has all the variants of another enum, you can use `..`:
+
+```mylang
+enum Fruit {
+    apple;
+    banana;
+    orange;
+}
+
+enum Food {
+    ..Fruit;
+    pizza;
+    sandwich;
+    ice_cream;
+}
+```
+
 The enum values don't have to be known at compile time.
 You could also use mutable variables declared with the `var` keyword:
 
@@ -73,6 +90,7 @@ def main() -> Void {
 
 ## Enum variables
 
+To make an enum variable you simply have to assign a variable with the enum type with one of its variants
 If you define the enum variant within the enum declaration,
 then the variant identifier will live in the scope of the enum type:
 
@@ -86,12 +104,22 @@ enum Fruit {
 def favorite_fruit: Fruit = Fruit.apple;
 ```
 
-You can of course also use `import` statements to import the enum variants:
+You can of course also use `import` statements to import the enum variants into the current scope:
 
 ```mylang
 import Fruit;
 
 def favorite_fruit: Fruit = apple;
+```
+
+Please note that in this case, it is important to remember to give the variable the `Fruit` type.
+Otherwise the compiler won't know if it should assign the enum variant or the enum value to the variable.
+This also ensures that there is no ambiguity when using variables that are variants of multiple enums:
+
+```mylang
+def fruit:  Fruit = apple;  // fruit is assigned the enum variant, apple, from the Fruit enum
+def food:   Food  = apple;  // food is assigned the enum variant, apple, from the Food enum
+def string: Str   = apple;  // string is assigned the enum value, "Apple".
 ```
 
 When you have an enum variable, you can access its value using the `value` method:
@@ -183,7 +211,7 @@ def likes_fruit(fruit: Fruit) -> Bool {
 ## Anonymous enums
 
 All of the previous declarations indicate norminal enum types.
-You can also declare an enum as a structural type by creating an alias to an anonymous enum type.
+You can also declare an enum as a [structural type](./anonymous_types.md#Structural) by creating an alias to an anonymous enum type.
 Anonymous enums are declared the same way, but without a name:
 
 ```mylang
@@ -241,7 +269,7 @@ union Animal of Sized(sizeof(Str)) {
 This is especially useful with the `Sized` trait, as it allows you to specify the maximum size of the union.
 The actual size of the union will be the size of the largest variant plus the size of the tag.
 
-The union variants can also be used by themselves:
+The union variants can also be used as types by themselves:
 
 ```mylang
 def get_tweety() -> Animal.Bird
@@ -256,6 +284,49 @@ union Color {
     [3]UInt8;
 }
 ```
+
+This allows multiple unions to overlap in their variants.
+Unions also allow you to use `..` to declare a union that has all the variants of another union:
+
+```mylang
+union Animal {
+    struct Bird {name: Str}
+    struct Cat  {name: Str}
+    struct Dog  {name: Str}
+}
+
+union Organism {
+    ..Animal;
+    struct Bacteria {dna: Dna}
+}
+```
+
+## Union variables
+
+To create a union variable, you simply have to assign a variable with the union type with one of its variants:
+
+```mylang
+union Animal {
+    struct Bird {name: Str}
+    struct Cat  {name: Str}
+    struct Dog  {name: Str}
+}
+
+def main() -> Void {
+    let animal: Animal = Animal.Cat.{"Garfield"};
+}
+```
+
+Though, just like enums, you might need to add type annotations.
+Otherwise the compiler won't know if it should assign the value as a union variant or not:
+
+```mylang
+def animal:   Animal   = Animal.Cat.{"Garfield"};
+def organism: Organism = Animal.Cat.{"Garfield"};
+```
+
+You can't access the value of a union variable directly.
+This is because we don't necessarily know which type a union variable holds.
 
 ## Union tag
 
@@ -337,7 +408,7 @@ Like enums, the block `is` operator can also contain multiple variants, other co
 
 ## Anonymous unions
 
-Unions can also be declared as anonymous types, which can be used to create structural types:
+Unions can also be declared as anonymous types, which can be used to create [structural types](./anonymous_types.md#Structural):
 
 ```mylang
 def Animal = union {
