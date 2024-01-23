@@ -22,15 +22,15 @@ pkgs.stdenv.mkDerivation {
   buildPhase = ''
     echo "building the compiler"
     mkdir -p $out/bin
-    c3c compile $src/src/* -o $out/bin/pl-compiler
+    ls -R ${c3c}
+    ${c3c} compile $src/src/* -o $out/bin/pl-compiler
   '';
 
   # Check phase
   doCheck = true;
 
-  checkInputs = with pkgs; [
+  navtiveCheckInputs = with pkgs; [
     gcc
-    c3c
   ];
 
   checkPhase = ''
