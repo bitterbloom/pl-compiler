@@ -13,7 +13,7 @@ pkgs.stdenv.mkDerivation {
     autoPatchelfHook
   ];
 
-  buildInputs = with pkgs; [
+  propagatedBuildInputs = with pkgs; [
     libxml2
     libffi
     zlib
