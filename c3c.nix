@@ -1,5 +1,5 @@
 { pkgs ? import <nixpkgs> {} }:
-pkgs.stdenv.mkDerivation {
+pkgs.stdenv.mkDerivation rec {
   pname = "c3c";
   version = "0.5.3";
   system = "x86_64-linux";
@@ -26,7 +26,7 @@ pkgs.stdenv.mkDerivation {
   ];
 
   installPhase = ''
-    echo "installing the c3 compiler v0.5.3"
+    echo "installing the c3 compiler v"${version}
     mkdir -p $out/bin
     tar -xzf $src -C $out
     mv $out/linux/c3c $out/bin/c3c

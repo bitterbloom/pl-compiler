@@ -11,6 +11,7 @@ pkgs.stdenv.mkDerivation {
 
   # Build phase
   nativeBuildInputs = [
+    pkgs.autoPatchelfHook
     c3c
   ];
 
@@ -28,8 +29,13 @@ pkgs.stdenv.mkDerivation {
   # Check phase
   doCheck = true;
 
-  navtiveCheckInputs = with pkgs; [
-    gcc
+  navtiveCheckInputs = [
+    c3c
+    #pkgs.gcc
+  ];
+
+  checkInputs = [
+    c3c
   ];
 
   checkPhase = ''
