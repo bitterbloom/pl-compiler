@@ -10,16 +10,17 @@ pkgs.stdenv.mkDerivation {
   };
 
   nativeBuildInputs = with pkgs; [
+    autoPatchelfHook
+  ];
+
+  buildInputs = with pkgs; [
     libxml2
     libffi
     zlib
     zstd
     ncurses
     stdenv.cc.cc.lib
-    autoPatchelfHook
-  ];
 
-  buildInputs = with pkgs; [
     lld
     llvm
   ];
@@ -31,7 +32,7 @@ pkgs.stdenv.mkDerivation {
     mv $out/linux/c3c $out/bin/c3c
     mv $out/linux/lib/ $out/bin/lib/
     rm -r $out/linux/
-    ls -R $out/bin/
+    ls $out/bin/
     echo "auto-patching the c3 compiler elf"
   '';
 }
