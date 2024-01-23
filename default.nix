@@ -28,7 +28,7 @@ pkgs.stdenv.mkDerivation {
     echo "checking libraries linked to pl-compiler"
     ldd $out/bin/pl-compiler
     echo "testing the compiler"
-    c3c test
+    c3c test --print-linking --debug-stats
   '';
 
   # Check phase
