@@ -19,10 +19,10 @@ pkgs.stdenv.mkDerivation {
     autoPatchelfHook
   ];
 
-  # buildInputs = with pkgs; [
-  #   lld
-  #   llvm
-  # ];
+  buildInputs = with pkgs; [
+    lld
+    llvm
+  ];
 
   installPhase = ''
     echo "installing the c3 compiler v0.5.3"
