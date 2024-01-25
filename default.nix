@@ -27,25 +27,27 @@ pkgs.stdenv.mkDerivation {
     c3c compile $src/src/* -o $out/bin/pl-compiler
     echo "checking libraries linked to pl-compiler"
     ldd $out/bin/pl-compiler
-    echo "testing the compiler"
-    c3c test --print-linking --debug-stats
   '';
 
   # Check phase
-  # doCheck = true;
+  doCheck = true;
 
-  # navtiveCheckInputs = [
-  #   pkgs.gcc
-  # ];
+  navtiveCheckInputs = [
+    pkgs.gcc
+  ];
 
-  # checkPhase = ''
-  #   echo "testing the compiler"
-  #   c3c test
-  # '';
+  checkPhase = ''
+    echo "testing the compiler"
+    c3c test
+  '';
 
   # Install phase
   installPhase = ''
     echo "doing nothing"
+  '';
+
+  # Nix shell
+  shellHook = ''
   '';
 
 }
