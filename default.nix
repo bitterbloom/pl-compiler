@@ -20,13 +20,9 @@ pkgs.stdenv.mkDerivation {
 
   # TODO: Change compile to build
   buildPhase = ''
-    echo "checking libraries linked to c3c"
-    ldd ${c3c}/bin/c3c
     echo "building the compiler"
     mkdir -p $out/bin
     c3c compile $src/src/* -o $out/bin/pl-compiler
-    echo "checking libraries linked to pl-compiler"
-    ldd $out/bin/pl-compiler
   '';
 
   # Check phase
