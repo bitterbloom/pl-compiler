@@ -39,6 +39,7 @@ fn void! test_simple() @test {
     qbe::emit_data(in, data)!;
     Func func = Func{
         .name = "main",
+        .exported = true,
         .type = {qbe::TypeKind.W},
         .args = Temp[]{},
         .blocks = Block[]{
@@ -253,6 +254,7 @@ fn void! emit_fib(String input, String output) @private {
     };
     Func fib = Func{
         .name = "fib",
+        .exported = false,
         .type = {qbe::TypeKind.W},
         .args = Temp[]{n},
         .blocks = Block[]{
@@ -283,6 +285,7 @@ fn void! emit_fib(String input, String output) @private {
     Func main = Func{
         .name = "main",
         .type = {qbe::TypeKind.W},
+        .exported = true,
         .args = Temp[]{},
         .blocks = Block[]{
             Block{
@@ -344,7 +347,7 @@ fn void! emit_fib(String input, String output) @private {
 
 distinct ShellProcess = SubProcess;
 
-fn ShellProcess! spawn_process() @private {
+fn ShellProcess! spawn_process() {
     SubProcess! process = process::create({"sh"}, { .inherit_environment = true });
     if (catch process) {
         io::print("Could not create shell process due to: \"");
@@ -363,7 +366,7 @@ fn ShellProcess! spawn_process() @private {
     return (ShellProcess) process;
 }
 
-fn bool ShellProcess.destroy(ShellProcess* process) @private {
+fn bool ShellProcess.destroy(ShellProcess* process) {
     return ((SubProcess*) process).destroy();
 }
 
@@ -379,7 +382,7 @@ fn usz! ShellProcess.read_stderr(ShellProcess* process, char[] buffer) @private 
     return ((SubProcess*) process).read_stderr(buffer, buffer.len);
 }
 
-fn void! ShellProcess.prepare_compile_to(ShellProcess* process, uint file_num) @private {
+fn void! ShellProcess.prepare_compile_to(ShellProcess* process, uint file_num) {
     File process_in = process.get_stdin();
     io::fprintf(&process_in, "mkdir -p ./temp/\n")!;
     io::fprintf(&process_in, "qbe - | gcc -x assembler -o ./temp/test%d -\n ", file_num)!;

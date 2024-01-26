@@ -113,9 +113,15 @@ struct Block {
 
 struct Func {
     String name;
-    Type type;
+    bool exported;
     Temp[] args;
+    Type type;
     Block[] blocks;
+}
+
+struct Program {
+    Data[] datas;
+    Func[] funcs;
 }
 
 fn void! emit_hello_world(OutStream* out) {
@@ -251,7 +257,8 @@ fn void! emit_block(OutStream* out, Block block) {
 }
 
 fn void! emit_func(OutStream* out, Func func) {
-    io::fprintf(out, "export function ")!;
+    if (func.exported) io::fprintf(out, "export ")!;
+    io::fprintf(out, "function ")!;
     emit_type(out, func.type)!;
     io::fprintf(out, " $%s(", func.name)!;
     foreach (arg : func.args) {
@@ -263,5 +270,16 @@ fn void! emit_func(OutStream* out, Func func) {
         emit_block(out, block)!;
     }
     io::fprintn(out, "}")!;
+}
+
+fn void! emit_program(OutStream* out, Program program) {
+    foreach (data : program.datas) {
+        emit_data(out, data)!;
+        io::fprintn(out, "")!;
+    }
+    foreach (func : program.funcs) {
+        emit_func(out, func)!;
+        io::fprintn(out, "")!;
+    }
 }
 
