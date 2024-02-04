@@ -1,17 +1,17 @@
 { pkgs ? import <nixpkgs> {} }:
-let
-  c3c = import ./c3c.nix { inherit pkgs; };
-in
 pkgs.stdenv.mkDerivation {
   pname = "pl-compiler";
   version = "0.0.0";
   system = "x86_64-linux";
 
-  src = ./.;
+  src = fetchGit {
+    url = ./.;
+    shallow = true;
+  };
 
   # Build phase
   nativeBuildInputs = [
-    c3c
+    pkgs.zig
   ];
 
   buildInputs = [
@@ -21,8 +21,8 @@ pkgs.stdenv.mkDerivation {
   # TODO: Change compile to build
   buildPhase = ''
     echo "building the compiler"
-    mkdir -p $out/bin
-    c3c compile $src/src/* -o $out/bin/pl-compiler
+    export XDG_CACHE_HOME=$TMP/.cache
+    zig build --prefix-exe-dir $out
   '';
 
   # Check phase
@@ -34,7 +34,7 @@ pkgs.stdenv.mkDerivation {
 
   checkPhase = ''
     echo "testing the compiler"
-    c3c test
+    zig build test
   '';
 
   # Install phase

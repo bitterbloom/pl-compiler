@@ -1,28 +1,29 @@
 
 help:
 	@echo "Usage: make <target>"
-	@echo "       make help    - show this help"
-	@echo "       make build   - build compiler"
-	@echo "       make run     - run compiler"
-	@echo "       make test    - run tests"
-	@echo "       make clean   - clean temp files"
+	@echo "       make help    	- show this help"
+	@echo "       make build   	- build compiler"
+	@echo "       make run     	- run compiler"
+	@echo "       make test    	- run tests"
+	@echo "       make clean   	- clean temp files"
+	@echo "       make cleanall	- also clean cache files"
 
 build:
-	@echo build
+	@zig build
 
 run:
-	@echo run
-	@rm -f ./pl-compiler
+	@zig build run
 
 test:
-	@c3c test
-	@rm -f ./testrun
+	@zig build test
 
 clean:
-	@rm -f ./pl-compiler
-	@rm -f ./testrun
-	@rm -f ./temp/*
+	@rm -rf ./zig-out/
+	@rm -rf ./temp/
 	@rm -f ./result
 
-.PHONY: help build run test clean
+cleanall: clean
+	@rm -rf ./zig-cache/
+
+.PHONY: help build run test clean cleanall
 
