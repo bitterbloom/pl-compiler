@@ -1,15 +1,12 @@
 { pkgs ? import <nixpkgs> {} }:
-let
-  fs = pkgs.lib.fileset;
-in
 pkgs.stdenv.mkDerivation {
   pname = "pl-compiler";
   version = "0.0.0";
   system = "x86_64-linux";
 
-  src = fs.toSource {
-    root = ./.;
-    fileset = fs.gitTracked ./.;
+  src = fetchGit {
+    url = ./.;
+    shallow = true;
   };
 
   # Build phase
