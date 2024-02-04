@@ -1,10 +1,11 @@
 ### Git Ignore
 
 # Project
-/build
 /temp
-testrun
-pl-compiler
+
+# Zig
+zig-cache/
+zig-out/
 
 # Nix
 result*
