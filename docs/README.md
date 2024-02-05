@@ -19,10 +19,12 @@ They are meant to be a quick reference and can be read in any order.
 - [ ] Type aliases (include `as` keyword)
 - [ ] Reference types
 - [x] [Generics](overview/generics)
-- [ ] Traits (include foreign defaults, auto traits, hide keyword)
-- [ ] Auto traits (include `Sized(S: UInt)`)
+- [ ] Traits (include foreign defaults, hide keyword)
+- [ ] Auto traits (include `Sized(s: UInt)`)
+- [ ] `Sized` and `Aligned`
 - [ ] Operators overloading
 - [ ] Type inference
+- [ ] The `_` (discard) identifier
 - [ ] Modules (include generics)
 - [ ] Error handling
 - [ ] Allocators
