@@ -21,29 +21,42 @@ pub fn emitDataStr(out: anytype, ident: []const u8, string: []const u8) !void {
     try out.writeAll("\", b 0, }\n");
 }
 
+/// Only the first parameter can have the none_env type.
+/// An elipsis is indicated by a null parameter.
+/// Only the last parameter can be an elipsis.
 pub fn emitFuncBegin(out: anytype, ident: []const u8, ret_ty: types.AbiTy, params: []const ?types.Param, exported: bool) !void {
     if (exported) try out.writeAll("export ");
     try out.writeAll("function ");
 
     switch (ret_ty) {
-        .subw_ty => |subw_ty| try emitSubwTy(out, subw_ty),
+        .subw_ty => |subw_ty| try emitSubwTy(out, subw_ty, false),
         .agg_ty => |agg_ty| try emitAggIdent(out, agg_ty),
         .none_env => {},
     }
     try emitGblIdent(out, ident);
 
     try out.writeAll("(");
+    var first = true;
+    var elipsis = false;
     for (params) |param_opt| {
+        std.debug.assert(!elipsis);
         if (param_opt) |param| {
             switch (param.abi_ty) {
-                .subw_ty => |subw_ty| try emitSubwTy(out, subw_ty),
+                .subw_ty => |subw_ty| try emitSubwTy(out, subw_ty, false),
                 .agg_ty => |agg_ty| try emitAggIdent(out, agg_ty),
-                .none_env => try out.writeAll("env "),
+                .none_env => {
+                    std.debug.assert(first);
+                    try out.writeAll("env ");
+                },
             }
             try emitTmpIdent(out, param.ident);
         }
-        else try out.writeAll("...");
+        else {
+            try out.writeAll("...");
+            elipsis = true;
+        }
         try out.writeAll(", ");
+        first = false;
     }
     try out.writeAll(") {\n");
 }
@@ -96,15 +109,16 @@ pub fn emitInstBi(out: anytype, inst: types.InstBi, tmp_ident: []const u8, tmp_t
     try out.writeAll("\n");
 }
 
+/// The tmp_ident must be null if tmp_type is none_env
 pub fn emitInstCall(out: anytype, tmp_ident: ?[]const u8, tmp_type: types.AbiTy, callee: []const u8, args: []const ?types.Arg) !void {
     try out.writeAll("    ");
     if (tmp_ident) |ident| {
         try emitTmpIdent(out, ident);
         try out.writeAll(" =");
         switch (tmp_type) {
-            .subw_ty => |subw_ty| try emitSubwTy(out, subw_ty),
+            .subw_ty => |subw_ty| try emitSubwTy(out, subw_ty, false),
             .agg_ty => |agg_ty| try emitAggIdent(out, agg_ty),
-            .none_env => try out.writeAll("env"),
+            .none_env => std.debug.assert(false),
         }
     }
 
@@ -114,19 +128,34 @@ pub fn emitInstCall(out: anytype, tmp_ident: ?[]const u8, tmp_type: types.AbiTy,
     try out.writeAll("\n");
 }
 
+/// Only the first argument can have the none_env type.
+/// An elipsis is indicated by a null argument.
+/// There can be at most one elipsis.
+/// Variadic arguments must follow C's default argument promotion rules.
+/// (i.e. float arguments are promoted to double, and all small integer arguments are promoted to word)
 pub fn emitArgs(out: anytype, args: []const ?types.Arg) !void {
     try out.writeAll("(");
+    var first = true;
+    var elipsis = false;
     for (args) |arg_opt| {
         if (arg_opt) |arg| {
             switch (arg.abi_ty) {
-                .subw_ty => |subw_ty| try emitSubwTy(out, subw_ty),
+                .subw_ty => |subw_ty| try emitSubwTy(out, subw_ty, elipsis),
                 .agg_ty => |agg_ty| try emitAggIdent(out, agg_ty),
-                .none_env => try out.writeAll("env "),
+                .none_env => {
+                    std.debug.assert(first);
+                    try out.writeAll("env ");
+                },
             }
             try emitVal(out, arg.val);
         }
-        else try out.writeAll("...");
+        else {
+            std.debug.assert(!elipsis);
+            try out.writeAll("...");
+            elipsis = true;
+        }
         try out.writeAll(", ");
+        first = false;
     }
     try out.writeAll(")");
 }
@@ -141,8 +170,8 @@ pub fn emitVal(out: anytype, val: types.Val) !void {
     }
 }
 
-pub fn emitSubwTy(out: anytype, subw_ty: types.SubwTy) !void {
-    switch (subw_ty) {
+pub fn emitSubwTy(out: anytype, subw_ty: types.SubwTy, variadic: bool) !void {
+    if (!variadic) switch (subw_ty) {
         .s_byte => try out.writeAll("sb "),
         .s_half => try out.writeAll("sh "),
         .u_byte => try out.writeAll("ub "),
@@ -152,6 +181,17 @@ pub fn emitSubwTy(out: anytype, subw_ty: types.SubwTy) !void {
         .long => try out.writeAll("l "),
         .single => try out.writeAll("s "),
         .double => try out.writeAll("d "),
+    }
+    else {
+        switch (subw_ty) {
+            .s_byte, .s_half,
+            .u_byte, .u_half,
+            .single => std.debug.assert(false),
+
+            .word => try out.writeAll("w "),
+            .long => try out.writeAll("l "),
+            .double => try out.writeAll("d "),
+        }
     }
 }
 
