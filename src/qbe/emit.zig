@@ -1,6 +1,8 @@
 const std = @import("std");
 const types = @import("types.zig");
 
+// TODO: Add variants of comment emitting functions that uses format strings.
+
 pub fn emitComment(out: anytype, comment: []const u8) !void {
     try out.writeAll("# ");
     try out.writeAll(comment);
@@ -85,6 +87,7 @@ pub fn emitInstUn(out: anytype, inst: types.InstUn, tmp_ident: []const u8, tmp_t
 
     switch (inst) {
         .exts => try out.writeAll("exts "),
+        .copy => try out.writeAll("copy "),
     }
 
     try emitVal(out, arg);
@@ -227,21 +230,22 @@ pub fn emitLblIdent(out: anytype, ident: []const u8) !void {
 test "hello world" {
     const testing = std.testing;
     const alloc = testing.allocator;
+    const test_util = @import("../test_util.zig");
 
     var array_list = std.ArrayList(u8).init(alloc);
     defer array_list.deinit();
     var out = array_list.writer();
 
     const expected_qbe =
-        \\# Define the string constant.
-        \\data $str = { b "hello world", b 0, }
-        \\export function w $main() {
-        \\@start
-        \\    # Call the puts function with $str as argument.
-        \\    %r =w call $puts(l $str, )
-        \\    ret 0
-        \\}
-        \\
+      \\# Define the string constant.
+      \\data $str = { b "hello world", b 0, }
+      \\export function w $main() {
+      \\@start
+      \\    # Call the puts function with $str as argument.
+      \\    %r =w call $puts(l $str, )
+      \\    ret 0
+      \\}
+      \\
     ;
 
     try emitComment(out, "Define the string constant.");
@@ -260,12 +264,13 @@ test "hello world" {
 
     const expected_exe = "hello world\n";
 
-    try testCompileAndRun(expected_exe, source);
+    try test_util.testCompileAndRun(expected_exe, source);
 }
 
 test "add pi" {
     const testing = std.testing;
     const alloc = testing.allocator;
+    const test_util = @import("../test_util.zig");
 
     var array_list = std.ArrayList(u8).init(alloc);
     defer array_list.deinit();
@@ -311,47 +316,6 @@ test "add pi" {
 
     const expected_exe = "10 + pi = 13.1415";
 
-    try testCompileAndRun(expected_exe, source);
-}
-
-fn testCompileAndRun(expected: []const u8, source: []const u8) !void {
-    const testing = std.testing;
-    const alloc = testing.allocator;
-
-    const dir = testing.tmpDir(.{}).dir;
-    const qbe_file_name = "./test.qbe";
-    const asm_file_name = "./test.s";
-    const exe_file_name = "./test";
-
-    // Run qbe
-    {
-        var qbe_file = try dir.createFile(qbe_file_name, .{});
-        defer qbe_file.close();
-        try qbe_file.writeAll(source);
-
-        // TODO: We could also use `sh -c` to run qbe, cc, and the executable instead of spawning a new process for each?
-
-        var qbe = try std.ChildProcess.exec(.{.argv = &.{"qbe", qbe_file_name, "-o", asm_file_name}, .cwd_dir = dir, .allocator = alloc, .max_output_bytes = 10 * 1024}); // fails if qbe was not found
-        //try std.testing.expectEqual(qbe.term, std.ChildProcess.Term{.Exited = 0}); // fails if qbe failed
-        defer { alloc.free(qbe.stdout); alloc.free(qbe.stderr); }
-        try testing.expectEqualStrings("", qbe.stderr); // fails if qbe printed to stderr
-        try testing.expectEqualStrings("", qbe.stdout); // fails if qbe printed to stdout
-        try dir.access(asm_file_name, .{ .mode = .read_only }); // fails if asm file was not created
-    }
-
-    // Run cc (links with libc)
-    var cc = try std.ChildProcess.exec(.{.argv = &.{"cc", asm_file_name, "-o", exe_file_name}, .cwd_dir = dir, .allocator = alloc, .max_output_bytes = 10 * 1024}); // fails if cc was not found
-    //try std.testing.expectEqual(cc.term, std.ChildProcess.Term{.Exited = 0}); // fails if cc failed
-    defer { alloc.free(cc.stdout); alloc.free(cc.stderr); }
-    try testing.expectEqualStrings("", cc.stderr); // fails if cc printed to stderr
-    try testing.expectEqualStrings("", cc.stdout); // fails if cc printed to stdout
-    try dir.access(exe_file_name, .{ .mode = .read_only }); // fails if exe file was not created
-
-    // Run the executable
-    var exe = try std.ChildProcess.exec(.{.argv = &.{exe_file_name}, .cwd_dir = dir, .allocator = alloc, .max_output_bytes = 10 * 1024}); // fails if exe was not found
-    //try std.testing.expect(exe.term, std.ChildProcess.Term{.Exited = 0});
-    defer { alloc.free(exe.stdout); alloc.free(exe.stderr); }
-    try testing.expectEqualStrings("", exe.stderr); // fails if exe printed to stderr
-    try testing.expectEqualStrings(expected, exe.stdout); // fails if exe printed incorrect output
+    try test_util.testCompileAndRun(expected_exe, source);
 }
 

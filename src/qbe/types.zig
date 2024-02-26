@@ -41,11 +41,10 @@ pub const SubwTy = enum(u3) {
 };
 
 /// Used for function arguments, parameters, and return types.
-/// `agg_ty` can be null.
 pub const AbiTy = union(enum(u2)) {
-    subw_ty: SubwTy = 0,
-    agg_ty:   AggTy = 1,
-    none_env: void  = 2,
+    subw_ty:  SubwTy = 0,
+    agg_ty:   AggTy  = 1,
+    none_env: void   = 2,
 };
 
 pub const Val = union(enum(u3)) {
@@ -68,6 +67,7 @@ pub const Arg = struct {
 
 pub const InstUn = enum {
     exts,
+    copy,
 };
 
 pub const InstBi = enum {
