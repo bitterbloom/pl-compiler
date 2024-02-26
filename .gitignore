@@ -9,4 +9,6 @@ zig-out/
 
 # Nix
 result*
+.envrc
+.direnv/
 
