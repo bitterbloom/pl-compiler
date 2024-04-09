@@ -406,7 +406,7 @@ test "hello world" {
 
     //  module _ {
     //      let $fmt: []UInt8 = "Hello, World!\0"
-    //      extern $puts([]UInt8): UInt32
+    //      extern $puts(^[]UInt8): UInt32
     //      export def $main(): UInt32 {
     //          var %r: UInt32
     //          %r = $puts($fmt)
@@ -433,8 +433,8 @@ test "hello world" {
     const mod: *ir.Mod = program.mods.list.addOneAssumeCapacity();
     mod.* = ir.Mod{
         .ident = "Main",
-        .globals = .{.list = try std.ArrayList(ir.Global).initCapacity(alloc, 2) },
-        .funcs = .{.list = try std.ArrayList(ir.Func).initCapacity(alloc, 2) },
+        .globals = .{.list = try std.ArrayList(ir.Global).initCapacity(alloc, 2)},
+        .funcs = .{.list = try std.ArrayList(ir.Func).initCapacity(alloc, 2)},
     };
     defer {
         mod.globals.list.deinit();
@@ -519,7 +519,7 @@ test "factorial" {
 
     //  module _ {
     //      data $fmt = "%u\n\0"
-    //      extern $printf([]UInt8, ...): UInt32
+    //      extern $printf(^[]UInt8, ...): UInt32
     //      def $factorial(%n: UInt32): UInt32 {
     //          var %r: UInt32
     //          %r = 1
@@ -544,7 +544,7 @@ test "factorial" {
     //          var %f: UInt32
     //          %f = call $factorial(%n)
     //          var %r: UInt32
-    //          %r = call $printf(%fmt, %f)
+    //          %r = call $printf(%fmt, ..., %f)
     //          ret %r
     //      }
     //  }
@@ -568,7 +568,7 @@ test "factorial" {
     //  @.0
     //      %n =w copy 8
     //      %f =w call $factorial(w %n, )
-    //      %r =w call $printf(l $fmt, w %f, )
+    //      %r =w call $printf(l $fmt, ..., w %f, )
     //      ret %r
     //  }
 
@@ -612,7 +612,7 @@ test "factorial" {
     printf.* = ir.Func{.external = .{
         .ident = "printf",
         .ret_ty = .uint32_ty,
-        .params = &.{program.tys.indexOf(ptr_to_arr_of_u8_ty)},
+        .params = &.{program.tys.indexOf(ptr_to_arr_of_u8_ty)}, // TODO: Add varargs
     }};
 
     // def $factorial(...): UInt32
