@@ -23,43 +23,42 @@ pub fn emitDataStr(out: anytype, ident: []const u8, string: []const u8) !void {
     try out.writeAll("\", b 0, }\n");
 }
 
-/// Only the first parameter can have the none_env type.
-/// An elipsis is indicated by a null parameter.
-/// Only the last parameter can be an elipsis.
-pub fn emitFuncBegin(out: anytype, ident: []const u8, ret_ty: types.AbiTy, params: []const ?types.Param, exported: bool) !void {
+pub fn emitFuncSigBegin(out: anytype, ident: []const u8, ret_ty: types.AbiTy, exported: bool) !void {
     if (exported) try out.writeAll("export ");
     try out.writeAll("function ");
 
-    switch (ret_ty) {
-        .subw_ty => |subw_ty| try emitSubwTy(out, subw_ty, false),
-        .agg_ty => |agg_ty| try emitAggIdent(out, agg_ty),
-        .none_env => {},
-    }
+    try emitAbiTy(out, ret_ty);
     try emitGblIdent(out, ident);
 
     try out.writeAll("(");
-    var first = true;
-    var elipsis = false;
-    for (params) |param_opt| {
-        std.debug.assert(!elipsis);
-        if (param_opt) |param| {
-            switch (param.abi_ty) {
-                .subw_ty => |subw_ty| try emitSubwTy(out, subw_ty, false),
-                .agg_ty => |agg_ty| try emitAggIdent(out, agg_ty),
-                .none_env => {
-                    std.debug.assert(first);
-                    try out.writeAll("env ");
-                },
-            }
-            try emitTmpIdent(out, param.ident);
-        }
-        else {
-            try out.writeAll("...");
-            elipsis = true;
-        }
-        try out.writeAll(", ");
-        first = false;
-    }
+}
+
+pub fn emitFuncVoidSigBegin(out: anytype, ident: []const u8, exported: bool) !void {
+    if (exported) try out.writeAll("export ");
+    try out.writeAll("function ");
+
+    try emitGblIdent(out, ident);
+
+    try out.writeAll("(");
+}
+
+pub fn emitFuncParam(out: anytype, ident: []const u8, abi_ty: types.AbiTy) !void {
+    try emitAbiTy(out, abi_ty);
+    try emitTmpIdent(out, ident);
+    try out.writeAll(", ");
+}
+
+pub fn emitFuncParamEnv(out: anytype, ident: []const u8) !void {
+    try out.writeAll("env ");
+    try emitTmpIdent(out, ident);
+    try out.writeAll(", ");
+}
+
+pub fn emitFuncParamElipsis(out: anytype) !void {
+    try out.writeAll("...");
+}
+
+pub fn emitFuncSigEnd(out: anytype) !void {
     try out.writeAll(") {\n");
 }
 
@@ -72,16 +71,35 @@ pub fn emitBlockBegin(out: anytype, ident: []const u8) !void {
     try out.writeAll("\n");
 }
 
-pub fn emitBlockEndRet(out: anytype, val: ?types.Val) !void {
-    try out.writeAll("    ret ");
-    if (val) |v| try emitVal(out, v);
+pub fn emitBlockEndJmp(out: anytype, ident: []const u8) !void {
+    try out.writeAll("    jmp ");
+    try emitLblIdent(out, ident);
     try out.writeAll("\n");
 }
 
-pub fn emitInstUn(out: anytype, inst: types.InstUn, tmp_ident: []const u8, tmp_type: types.BaseTy, arg: types.Val) !void {
+pub fn emitBlockEndJnz(out: anytype, cond: types.Val, block_t: []const u8, block_f: []const u8) !void {
+    try out.writeAll("    jnz ");
+    try emitVal(out, cond);
+    try out.writeAll(", ");
+    try emitLblIdent(out, block_t);
+    try out.writeAll(", ");
+    try emitLblIdent(out, block_f);
+    try out.writeAll("\n");
+}
+
+pub fn emitBlockEndRet(out: anytype, val: types.Val) !void {
+    try out.writeAll("    ret ");
+    try emitVal(out, val);
+    try out.writeAll("\n");
+}
+
+pub fn emitBlockEndRetVoid(out: anytype) !void {
+    try out.writeAll("    ret\n");
+}
+
+pub fn emitInstUn(out: anytype, tmp_ident: []const u8, tmp_type: types.BaseTy, inst: types.InstUn, arg: types.Val) !void {
     try out.writeAll("    ");
     try emitTmpIdent(out, tmp_ident);
-
     try out.writeAll(" =");
     try emitBaseTy(out, tmp_type);
 
@@ -94,16 +112,26 @@ pub fn emitInstUn(out: anytype, inst: types.InstUn, tmp_ident: []const u8, tmp_t
     try out.writeAll("\n");
 }
 
-pub fn emitInstBi(out: anytype, inst: types.InstBi, tmp_ident: []const u8, tmp_type: types.BaseTy, lhs: types.Val, rhs: types.Val) !void {
+pub fn emitInstBi(out: anytype, tmp_ident: []const u8, tmp_type: types.BaseTy, inst: types.InstBi, op_type: types.BaseTy, lhs: types.Val, rhs: types.Val) !void {
     try out.writeAll("    ");
     try emitTmpIdent(out, tmp_ident);
-
     try out.writeAll(" =");
     try emitBaseTy(out, tmp_type);
 
     switch (inst) {
         .add => try out.writeAll("add "),
         .sub => try out.writeAll("sub "),
+        .mul => try out.writeAll("mul "),
+
+        // TODO: Include all comparisons
+        .ugt => {
+            try out.writeAll("c");
+            try out.writeAll(switch (inst) {
+                .ugt => "ugt",
+                else => @panic("todo"),
+            });
+            try emitBaseTy(out, op_type);
+        },
     }
 
     try emitVal(out, lhs);
@@ -112,55 +140,44 @@ pub fn emitInstBi(out: anytype, inst: types.InstBi, tmp_ident: []const u8, tmp_t
     try out.writeAll("\n");
 }
 
-/// The tmp_ident must be null if tmp_type is none_env
-pub fn emitInstCall(out: anytype, tmp_ident: ?[]const u8, tmp_type: types.AbiTy, callee: []const u8, args: []const ?types.Arg) !void {
+pub fn emitInstCallBegin(out: anytype, tmp_ident: []const u8, tmp_type: types.AbiTy, func_ident: []const u8) !void {
     try out.writeAll("    ");
-    if (tmp_ident) |ident| {
-        try emitTmpIdent(out, ident);
-        try out.writeAll(" =");
-        switch (tmp_type) {
-            .subw_ty => |subw_ty| try emitSubwTy(out, subw_ty, false),
-            .agg_ty => |agg_ty| try emitAggIdent(out, agg_ty),
-            .none_env => std.debug.assert(false),
-        }
-    }
+    try emitTmpIdent(out, tmp_ident);
+    try out.writeAll(" =");
+    try emitAbiTy(out, tmp_type);
 
     try out.writeAll("call ");
-    try emitGblIdent(out, callee);
-    try emitArgs(out, args);
-    try out.writeAll("\n");
+    try emitGblIdent(out, func_ident);
+    try out.writeAll("(");
 }
 
-/// Only the first argument can have the none_env type.
-/// An elipsis is indicated by a null argument.
-/// There can be at most one elipsis.
+pub fn emitInstVoidCallBegin(out: anytype, func_ident: []const u8) !void {
+    try out.writeAll("    call ");
+    try emitGblIdent(out, func_ident);
+    try out.writeAll("(");
+}
+
 /// Variadic arguments must follow C's default argument promotion rules.
 /// (i.e. float arguments are promoted to double, and all small integer arguments are promoted to word)
-pub fn emitArgs(out: anytype, args: []const ?types.Arg) !void {
-    try out.writeAll("(");
-    var first = true;
-    var elipsis = false;
-    for (args) |arg_opt| {
-        if (arg_opt) |arg| {
-            switch (arg.abi_ty) {
-                .subw_ty => |subw_ty| try emitSubwTy(out, subw_ty, elipsis),
-                .agg_ty => |agg_ty| try emitAggIdent(out, agg_ty),
-                .none_env => {
-                    std.debug.assert(first);
-                    try out.writeAll("env ");
-                },
-            }
-            try emitVal(out, arg.val);
-        }
-        else {
-            std.debug.assert(!elipsis);
-            try out.writeAll("...");
-            elipsis = true;
-        }
-        try out.writeAll(", ");
-        first = false;
-    }
-    try out.writeAll(")");
+pub fn emitInstCallArg(out: anytype, abi_ty: types.AbiTy, val: types.Val) !void {
+    try emitAbiTy(out, abi_ty);
+    try emitVal(out, val);
+    try out.writeAll(", ");
+}
+
+pub fn emitInstCallArgEnv(out: anytype, val: types.Val) !void {
+    try out.writeAll("env ");
+    try emitVal(out, val);
+    try out.writeAll(", ");
+}
+
+pub fn emitInstCallArgElipsis(out: anytype) !void {
+    try out.writeAll("...");
+    try out.writeAll(", ");
+}
+
+pub fn emitInstCallEnd(out: anytype) !void {
+    try out.writeAll(")\n");
 }
 
 pub fn emitVal(out: anytype, val: types.Val) !void {
@@ -173,8 +190,15 @@ pub fn emitVal(out: anytype, val: types.Val) !void {
     }
 }
 
-pub fn emitSubwTy(out: anytype, subw_ty: types.SubwTy, variadic: bool) !void {
-    if (!variadic) switch (subw_ty) {
+pub fn emitAbiTy(out: anytype, abi_ty: types.AbiTy) !void {
+    switch (abi_ty) {
+        .subw_ty => |subw_ty| try emitSubwTy(out, subw_ty),
+        .agg_ty => |agg_ty| try emitAggIdent(out, agg_ty),
+    }
+}
+
+pub fn emitSubwTy(out: anytype, subw_ty: types.SubwTy) !void {
+    switch (subw_ty) {
         .s_byte => try out.writeAll("sb "),
         .s_half => try out.writeAll("sh "),
         .u_byte => try out.writeAll("ub "),
@@ -184,17 +208,6 @@ pub fn emitSubwTy(out: anytype, subw_ty: types.SubwTy, variadic: bool) !void {
         .long => try out.writeAll("l "),
         .single => try out.writeAll("s "),
         .double => try out.writeAll("d "),
-    }
-    else {
-        switch (subw_ty) {
-            .s_byte, .s_half,
-            .u_byte, .u_half,
-            .single => std.debug.assert(false),
-
-            .word => try out.writeAll("w "),
-            .long => try out.writeAll("l "),
-            .double => try out.writeAll("d "),
-        }
     }
 }
 
@@ -250,10 +263,13 @@ test "hello world" {
 
     try emitComment(out, "Define the string constant.");
     try emitDataStr(out, "str", "hello world");
-    try emitFuncBegin(out, "main", .{.subw_ty = .word }, &.{}, true);
+    try emitFuncSigBegin(out, "main", .{.subw_ty = .word}, true);
+    try emitFuncSigEnd(out);
     try emitBlockBegin(out, "start");
     try emitInstComment(out, "Call the puts function with $str as argument.");
-    try emitInstCall(out, "r", .{.subw_ty = .word}, "puts", &.{.{.abi_ty = .{.subw_ty = .long}, .val = .{.gbl = "str"}}});
+    try emitInstCallBegin(out, "r", .{.subw_ty = .word}, "puts");
+    try emitInstCallArg(out, .{.subw_ty = .long}, .{.gbl = "str"});
+    try emitInstCallEnd(out);
     try emitBlockEndRet(out, .{.int = 0});
     try emitFuncEnd(out);
 
@@ -295,17 +311,26 @@ test "add pi" {
 
     try emitDataStr(out, "fmt", "10 + pi = %.4f");
 
-    try emitFuncBegin(out, "add_pi", .{.subw_ty = .single}, &.{.{.abi_ty = .{.subw_ty = .single}, .ident = "a"}}, false);
+    try emitFuncSigBegin(out, "add_pi", .{.subw_ty = .single}, false);
+    try emitFuncParam(out, "a", .{.subw_ty = .single});
+    try emitFuncSigEnd(out);
     try emitBlockBegin(out, "start");
-    try emitInstBi(out, .add, "b", .single, .{.tmp = "a"}, .{.sin = 3.1415});
+    try emitInstBi(out, "b", .single, .add, .single, .{.tmp = "a"}, .{.sin = 3.1415});
     try emitBlockEndRet(out, .{.tmp = "b"});
     try emitFuncEnd(out);
 
-    try emitFuncBegin(out, "main", .{.subw_ty = .word}, &.{}, true);
+    try emitFuncSigBegin(out, "main", .{.subw_ty = .word}, true);
+    try emitFuncSigEnd(out);
     try emitBlockBegin(out, "start");
-    try emitInstCall(out, "a", .{.subw_ty = .single}, "add_pi", &.{.{.abi_ty = .{.subw_ty = .single}, .val = .{.sin = 10}}});
-    try emitInstUn(out, .exts, "b", .double, .{.tmp = "a"});
-    try emitInstCall(out, "c", .{.subw_ty = .word}, "printf", &.{.{.abi_ty = .{.subw_ty = .long}, .val = .{.gbl = "fmt"}}, null, .{.abi_ty = .{.subw_ty = .double}, .val = .{.tmp = "b"}}});
+    try emitInstCallBegin(out, "a", .{.subw_ty = .single}, "add_pi");
+    try emitInstCallArg(out, .{.subw_ty = .single}, .{.sin = 10});
+    try emitInstCallEnd(out);
+    try emitInstUn(out, "b", .double, .exts, .{.tmp = "a"});
+    try emitInstCallBegin(out, "c", .{.subw_ty = .word}, "printf");
+    try emitInstCallArg(out, .{.subw_ty = .long}, .{.gbl = "fmt"});
+    try emitInstCallArgElipsis(out);
+    try emitInstCallArg(out, .{.subw_ty = .double}, .{.tmp = "b"});
+    try emitInstCallEnd(out);
     try emitBlockEndRet(out, .{.tmp = "c"});
     try emitFuncEnd(out);
 

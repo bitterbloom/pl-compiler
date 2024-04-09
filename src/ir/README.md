@@ -4,7 +4,7 @@ This IR is currently only used to generate QBE
 code, but it should be designed in a way that it
 can be used to with other backends as well.
 
-It get generated from the AST after some analysis
+It gets generated from the AST after some analysis
 has been done. Multiple passes will have to be
 done on the IR before it can be used to generate
 code.
@@ -41,7 +41,7 @@ module <Module> {
 Modules can contain functions.
 
 ```
-def [export]? <function>([%<arg>: <Type>], ) -> <Type> {
+def [export]? $<function>([%<arg>: <Type>], ) -> <Type> {
     <instructions...>
 }
 ```
@@ -77,15 +77,51 @@ extern printf(format: *[]UInt8, ...) -> Int32;
 
 def counter() -> {
     let value: &Int32 = static -1;
-    &value++;
-    return .{"counter was called: %d\n\0", value};
+    &value += 1;
+    return .{"counter was called: %d\n\0", value^};
 }
 
 pub def main() -> {
-    for (in #range(10)) {
+    for (in range(10)) {
         let {format, value} = counter();
-        printf(format.data(), .{value});
+        printf(format.data, ..., value);
     }
+}
+```
+
+which would first be transformed into this:
+
+```mylang
+extern printf(format: ^[]UInt8, ...) -> Int32;
+
+var static_int: Int32 = -1;
+let const_str: Str = Str.{len = 24, data = "counter was called: %d\n\0"};
+
+struct RetType {
+    str: Str;
+    int: Int32;
+}
+
+def counter() -> RetType {
+    let value: ^Int32 = ^static_int;
+    var deref0: Int32 = value^;
+    deref0 += 1;
+    value^ = deref0;
+    let deref1: Int32 = value^;
+    let ret_val: RetType = RetType.{str = const_str, int = deref1};
+    return ret_val;
+}
+
+pub def main() -> Void {
+    do {
+        var i = 0;
+        while (i < 10) {
+            let counter_ret = counter();
+            printf(counter_ret.str.data, ..., counter_ret.int.value);
+            i += 1;
+        }
+    }
+    return void;
 }
 ```
 
@@ -95,44 +131,51 @@ could initially be turned into this IR:
 module _ {
     extern $printf(%format: ^[]UInt8, ...): Int32
 
-    var %counter.0: Int32 = -1
-    let %counter.1: Arr = { 24, "counter was called: %d\n\0" }
+    var $static_int: Int32 = -1
+    let $const_str: Str = {len = 24, data = "counter was called: %d\n\0"}
 
-    def :counter.2 = struct {
-        %0: ^[24]UInt8
-        %1: Int32
+    def :RetType = struct {
+        %str: Str
+        %int: Int32
     }
 
-    def $counter(): counter.2 {
+    def $counter(): RetType {
         let %value: ^Int32
-        %value = %counter.0
-        let %0: Int32
-        %0 = load %value
-        %0 = add_ub %0, 1
-        store %value = %0
-        var %1: counter.2
-        %1 = { %counter.1, %0 }
-        return %1
+        %value = addr $static_int
+        var %deref0: Int32
+        %deref0 = load %value
+        %deref0 = add_ub %deref0, 1
+        store %static_int = %deref
+        let %ret_val: RetType
+        %ret_val.%str = $const_str
+        %ret_val.%int = %deref
+        return %ret_val
     }
 
     export $main(): Void {
-        @0 {
-            var %0: UInt32
-            %0 = 0
-            jump @1
-            @1 {
-                let %1: counter.2
-                %1 = call counter()
-                tmp %2: ^[]UInt8
-                %2 = call Arr.$data(%1.%0)
-                call $printf(%2, ..., %1.%1)
-                %0 = add_ub %0, 1
-                tmp %1: UInt32
-                %1 = equals %0, 10
-                jump @2 if %1 else @1
+        @macro_expansion {
+            var %i: UInt32
+            %i = 0
+            jump @while_cond
+            @while_cond {
+                tmp %cond: Bool
+                %cond = less %i, 10
+                jump @while_body if %cond else @return
+            }
+            @while_body {
+                let %counter_ret: RetType
+                %counter_ret = call $counter()
+                let %data: ^[]UInt8
+                %data = %counter_ret.%str.%data
+                let %int: Int32
+                %int = %counter_ret.%int
+                let %ignore: Int32
+                %ignore = call $printf(%data_ptr, ..., %counter_ret.%int)
+                %i = add_ub %i, 1
+                jump @while_cond
             }
         }
-        @2 {
+        @return {
             return void
         }
     }
@@ -145,22 +188,22 @@ until finally turned into this analysed IR:
 module _ {
     extern $printf(%format: ^[]UInt8, ...): Int32
 
-    let %counter.1.%data: ^[]UInt8 = "counter was called: %d\n\0"
+    let $const_str.data: []UInt8 = "counter was called: %d\n\0"
 
     export $main(): Void {
-        tmp %0: UInt32
-        %0 = 0
-        tmp %counter.0: Int32 = -1
-        jump @1
-        @1 {
-            %counter.0 = add_ub %counter.0, 1
-            %0 = add_ub %0, 1
-            tmp %1: UInt32
-            %1 = equals %0, 10
-            call $printf(%counter.1.%data, ..., %counter.0)
-            jump @2 if %1 else @1
+        var %i: UInt32
+        %i = 0
+        var $static_int: Int32
+        $static_int = -1
+        jump @while_body
+        @while_body {
+            %static_int = add_ub %static_int, 1
+            %ignore = call $printf(addr $const_str.data, ..., %static_int)
+            tmp %cond = less %i, 10
+            %i = add_ub %i, 1
+            jump @while_body if %cond else @return
         }
-        @2 {
+        @return {
             return void
         }
     }
@@ -170,21 +213,21 @@ module _ {
 which could be turned into this QBE code:
 
 ```qbe
-data $counter.1.data = { b "counter was called: %d\n", b 0 }
+data $counter_str.data = { b "counter was called: %d\n", b 0 }
 
-function export w $main() {
-@start
-    %0 =w copy 0
-    %counter.0 =w copy -1
-    jmp @1
-@1
-    %counter.0 =w add %counter.0, 1
-    %0 =w add %0, 1
-    %1 =w ceqw %0, 10
-    %2 =w call $printf(l $counter.1.data, ..., w %counter.0)
-    jnz %1, @2, @1
-@2
-    ret 0
+function export $main() {
+@entry
+    %i =w copy 0
+    %static_int =w copy -1
+    jmp @while_body
+@while_body
+    %static_int =w add %static_int, 1
+    %ignore =w call $printf(l $const_str.data, ..., w %static_int)
+    %cond =w cultw %i, 10
+    %i =w add %i, 1
+    jnz %cond, @while_body, @return
+@return
+    ret
 }
 ```
 

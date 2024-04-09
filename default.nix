@@ -28,7 +28,7 @@ pkgs.stdenv.mkDerivation {
   # Check phase
   doCheck = true;
 
-  navtiveCheckInputs = [
+  nativeCheckInputs = [
     pkgs.gcc
   ];
 

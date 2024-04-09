@@ -41,10 +41,9 @@ pub const SubwTy = enum(u3) {
 };
 
 /// Used for function arguments, parameters, and return types.
-pub const AbiTy = union(enum(u2)) {
+pub const AbiTy = union(enum(u1)) {
     subw_ty:  SubwTy = 0,
     agg_ty:   AggTy  = 1,
-    none_env: void   = 2,
 };
 
 pub const Val = union(enum(u3)) {
@@ -55,16 +54,6 @@ pub const Val = union(enum(u3)) {
     dou: f64 = 4,
 };
 
-pub const Param = struct {
-    abi_ty: AbiTy,
-    ident: []const u8,
-};
-
-pub const Arg = struct {
-    abi_ty: AbiTy,
-    val: Val,
-};
-
 pub const InstUn = enum {
     exts,
     copy,
@@ -73,5 +62,7 @@ pub const InstUn = enum {
 pub const InstBi = enum {
     add,
     sub,
+    mul,
+    ugt,
 };
 
