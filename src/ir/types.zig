@@ -107,28 +107,26 @@ pub const FuncList = struct {
 pub const InstList = struct {
     list: std.ArrayList(Inst),
 
-    pub const Index = enum(u32) {
-        _,
-    };
+    pub const Index = u32;
 
     pub fn add(self: *InstList, inst: Inst) !Index {
         (try self.list.addOne().*) = inst;
-        return @enumFromInt(self.list.items.len - 1);
+        return @intCast(self.list.items.len - 1);
     }
 
     pub fn addNoAlloc(self: *InstList, inst: Inst) Index {
         self.list.addOneAssumeCapacity().* = inst;
-        return @enumFromInt(self.list.items.len - 1);
+        return @intCast(self.list.items.len - 1);
     }
 
     pub fn addUninit(self: *InstList) !Index {
         try self.list.addOne();
-        return @enumFromInt(self.list.items.len - 1);
+        return @intCast(self.list.items.len - 1);
     }
 
     pub fn addUninitNoAlloc(self: *InstList) Index {
         _ = self.list.addOneAssumeCapacity();
-        return @enumFromInt(self.list.items.len - 1);
+        return @intCast(self.list.items.len - 1);
     }
 
     pub fn init(self: *InstList, index: Index, inst: Inst) void {
@@ -136,14 +134,14 @@ pub const InstList = struct {
     }
 
     pub fn get(self: *const InstList, index: Index) *Inst {
-        return &self.list.items[@intFromEnum(index)];
+        return &self.list.items[index];
     }
 
     pub fn indexOf(self: *const InstList, ptr: *const Inst) Index {
         var index = @intFromPtr(ptr) - @intFromPtr(self.list.items.ptr);
         index /= @sizeOf(Inst);
         std.debug.assert(index < self.list.items.len);
-        return @enumFromInt(index);
+        return @intCast(index);
     }
 };
 
@@ -206,7 +204,7 @@ pub const Inst = union(enum(u8)) {
             lhs: Arg,
             rhs: Arg,
 
-            pub const Op = enum(u2) {
+            pub const Op = enum(u4) {
                 add = 0,
                 sub = 1,
                 mul = 2,

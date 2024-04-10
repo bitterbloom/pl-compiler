@@ -6,6 +6,6 @@ pub fn main() !void {
 
 test {
     std.testing.refAllDeclsRecursive(@import("qbe/emit.zig"));
-    std.testing.refAllDeclsRecursive(@import("ir/to_qbe.zig"));
+    std.testing.refAllDeclsRecursive(@import("ir/tests.zig"));
 }
 
