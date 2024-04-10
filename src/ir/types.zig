@@ -199,6 +199,7 @@ pub const Inst = union(enum(u8)) {
         call0: Call0,
         call1: Call1,
         call2: Call2,
+        calln: CallN,
 
         pub const BiOp = struct {
             op: Op,
@@ -228,10 +229,17 @@ pub const Inst = union(enum(u8)) {
             arg1: Arg,
         };
 
+        pub const CallN = struct {
+            index: FuncList.Index,
+            arg_len: u32,
+            args: [*]const Arg,
+        };
+
         pub const Arg = union(enum) {
             local: InstList.Index,
             global: GlobalList.Index,
             uint32: u32,
+            vararg: void,
         };
     };
 

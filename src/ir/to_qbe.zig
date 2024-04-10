@@ -134,6 +134,9 @@ fn emitInsts(out: anytype, program: *const ir.Program, mod: *const ir.Mod, indic
                         },
                         .global => @panic("todo"),
                         .uint32 => @panic("todo"),
+                        .vararg => std.debug.panic(
+                            "Vararg should not be used as an argument to a binary operation", .{}
+                        ),
                     }
 
                     const rhs: qbe.Val = switch (bi_op.rhs) {
@@ -146,6 +149,9 @@ fn emitInsts(out: anytype, program: *const ir.Program, mod: *const ir.Mod, indic
                         },
                         .global => @panic("todo"),
                         .uint32 => |uint32| qbe.Val{.int = uint32},
+                        .vararg => std.debug.panic(
+                            "Vararg should not be used as an argument to a binary operation", .{}
+                        ),
                     };
 
                     const op: qbe.InstBi = switch (bi_op.op) {
@@ -212,6 +218,37 @@ fn emitInsts(out: anytype, program: *const ir.Program, mod: *const ir.Mod, indic
 
                     try emit.emitInstCallEnd(out);
                 },
+                .calln => |call| {
+                    const target: ir.Inst.Local = switch (program.insts.get(set.target).*) {
+                        .param => |param| param,
+                        .local => |local| local,
+                        else => std.debug.panic(
+                            "A local argument should only either be a local or param instruction", .{}
+                        ),
+                    };
+
+                    const set_ident: []const u8 = target.ident;
+                    const set_ty: ?qbe.AbiTy = tyToQbeAbi(null, target.ty);
+
+                    const func: ir.Func = mod.funcs.get(call.index).*;
+                    const func_ident: []const u8 = switch (func) {
+                        .external => |external| external.ident,
+                        .internal => |internal| internal.ident,
+                    };
+
+                    if (set_ty) |ty|
+                        try emit.emitInstCallBegin(out, set_ident, ty, func_ident)
+                    else // A set instruction cannot call a function that returns void.
+                        std.debug.assert(false);
+
+                    var args: []const ir.Inst.Expr.Arg = undefined;
+                    args.ptr = call.args;
+                    args.len = call.arg_len;
+
+                    try emitArgs(out, program, mod, func, args);
+
+                    try emit.emitInstCallEnd(out);
+                },
             },
             .jump => |jump| {
                 switch (program.insts.get(jump.block).*) {
@@ -228,6 +265,9 @@ fn emitInsts(out: anytype, program: *const ir.Program, mod: *const ir.Mod, indic
                     },
                     .global => @panic("todo"),
                     .uint32 => @panic("todo"),
+                    .vararg => std.debug.panic(
+                        "Vararg should not be used as an argument to a branch statement", .{}
+                    ),
                 };
                 try emit.emitBlockEndJnz(
                     out, val,
@@ -244,6 +284,9 @@ fn emitInsts(out: anytype, program: *const ir.Program, mod: *const ir.Mod, indic
                     },
                     .global => @panic("todo"),
                     .uint32 => |uint32| qbe.Val{.int = uint32},
+                    .vararg => std.debug.panic(
+                        "Vararg should not be used as an argument to a return statement", .{}
+                    ),
                 };
                 try emit.emitBlockEndRet(out, val);
             },
@@ -267,9 +310,9 @@ fn emitArgs(out: anytype, program: *const ir.Program, mod: *const ir.Mod, func: 
                         const local: ir.Inst.Local = switch (program.insts.get(index).*) {
                             .param => |param| param,
                             .local => |local| local,
-                            else => {
-                                std.debug.panic("A local argument should only either be a local or param instruction", .{});
-                            }
+                            else => std.debug.panic(
+                                "A local argument should only either be a local or param instruction", .{}
+                            ),
                         };
 
                         const arg_ty = if (tyToQbeAbi(program, local.ty)) |ty| ty else @panic("todo");
@@ -280,6 +323,9 @@ fn emitArgs(out: anytype, program: *const ir.Program, mod: *const ir.Mod, func: 
                         try emit.emitInstCallArg(out, .{.subw_ty = .long}, .{.gbl = mod.globals.get(index).ident});
                     },
                     .uint32 => @panic("todo"),
+                    .vararg => {
+                        try emit.emitInstCallArgElipsis(out);
+                    },
                 }
             },
             .internal => |_| {
@@ -288,9 +334,9 @@ fn emitArgs(out: anytype, program: *const ir.Program, mod: *const ir.Mod, func: 
                         const local: ir.Inst.Local = switch (program.insts.get(index).*) {
                             .param => |param| param,
                             .local => |local| local,
-                            else => {
-                                std.debug.panic("A local argument should only either be a local or param instruction", .{});
-                            }
+                            else => std.debug.panic(
+                                "A local argument should only either be a local or param instruction", .{}
+                            ),
                         };
 
                         const arg_ty = if (tyToQbeAbi(program, local.ty)) |ty| ty else @panic("todo");
@@ -301,6 +347,9 @@ fn emitArgs(out: anytype, program: *const ir.Program, mod: *const ir.Mod, func: 
                         try emit.emitInstCallArg(out, .{.subw_ty = .long}, .{.gbl = mod.globals.get(index).ident});
                     },
                     .uint32 => @panic("todo"),
+                    .vararg => {
+                        try emit.emitInstCallArgElipsis(out);
+                    },
                 }
             }
         }
@@ -612,7 +661,10 @@ test "factorial" {
     printf.* = ir.Func{.external = .{
         .ident = "printf",
         .ret_ty = .uint32_ty,
-        .params = &.{program.tys.indexOf(ptr_to_arr_of_u8_ty)}, // TODO: Add varargs
+        .params = &.{
+            program.tys.indexOf(ptr_to_arr_of_u8_ty),
+            ir.TyList.Index.vararg_ty,
+        },
     }};
 
     // def $factorial(...): UInt32
@@ -829,10 +881,14 @@ test "factorial" {
     main.internal.indices.addOneAssumeCapacity().* = program.insts.addNoAlloc(.{
         .set = ir.Inst.Set{
             .target = main_r_index,
-            .expr = .{.call2 = .{
+            .expr = .{.calln = .{
                 .index = mod.funcs.indexOf(printf),
-                .arg0 = ir.Inst.Expr.Arg{.global = mod.globals.indexOf(fmt)},
-                .arg1 = ir.Inst.Expr.Arg{.local = main_f_index},
+                .arg_len = 3,
+                .args = &[_]ir.Inst.Expr.Arg{
+                    ir.Inst.Expr.Arg{.global = mod.globals.indexOf(fmt)},
+                    ir.Inst.Expr.Arg{.vararg = void{}},
+                    ir.Inst.Expr.Arg{.local = main_f_index},
+                },
             }},
         }
     });
@@ -866,7 +922,7 @@ test "factorial" {
       \\@.0
       \\    %n =w copy 8
       \\    %f =w call $factorial(w %n, )
-      \\    %r =w call $printf(l $fmt, w %f, )
+      \\    %r =w call $printf(l $fmt, ..., w %f, )
       \\    ret %r
       \\}
       \\
