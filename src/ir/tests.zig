@@ -1,12 +1,105 @@
 const std = @import("std");
+const testing = std.testing;
+const test_util = @import("../test_util.zig");
+
 const ir = @import("./types.zig");
 const to_qbe = @import("./to_qbe.zig");
+const parse = @import("./parse.zig");
 const print = @import("./print.zig");
 
+test "tokenize" {
+    var buffer: [100_000]u8 = undefined;
+    var alloc = std.heap.FixedBufferAllocator.init(&buffer);
+    //const alloc = testing.allocator;
+
+    const string =
+      \\module {
+      \\    def $fmt []UInt8 = "Hello, World!\0"
+      \\    extern $puts(^[]UInt8, ) UInt32
+      \\    export def $main() UInt32 {
+      \\        tmp %r UInt32
+      \\        %r = $puts($fmt, )
+      \\        return %r
+      \\    }
+      \\}
+      \\
+    ;
+
+    const expected = [_]parse.TokenKind{
+        .{.module    = void{}},
+        .{.@"{"      = void{}},
+        .{.def       = void{}},
+        .{.gbl_id    = ""    },
+        .{.@"["      = void{}},
+        .{.@"]"      = void{}},
+        .{.word      = ""    },
+        .{.@"="      = void{}},
+        .{.str       = ""    }, 
+        .{.@"extern" = void{}},
+        .{.gbl_id    = ""    },
+        .{.@"("      = void{}},
+        .{.word      = ""    },
+        .{.@"["      = void{}},
+        .{.@"]"      = void{}},
+        .{.word      = ""    },
+        .{.@","      = void{}},
+        .{.@")"      = void{}},
+        .{.word      = ""    },
+        .{.@"export" = void{}},
+        .{.def       = void{}},
+        .{.gbl_id    = ""    },
+        .{.@"("      = void{}},
+        .{.@")"      = void{}},
+        .{.word      = ""    },
+        .{.@"{"      = void{}},
+        .{.tmp       = void{}},
+        .{.lcl_id    = ""    },
+        .{.word      = ""    },
+        .{.lcl_id    = ""    },
+        .{.@"="      = void{}},
+        .{.gbl_id    = ""    },
+        .{.@"("      = void{}},
+        .{.gbl_id    = ""    },
+        .{.@","      = void{}},
+        .{.@")"      = void{}},
+        .{.word      = ""    },
+        .{.lcl_id    = ""    },
+        .{.@"}"      = void{}},
+        .{.@"}"      = void{}},
+        .{.eof       = void{}},
+    };
+
+    var tokens = try std.ArrayList(parse.Token).initCapacity(alloc.allocator(), 100);
+
+    var tokenizer = parse.Tokenizer.init(string, alloc.allocator());
+    try tokens.append(try tokenizer.tokenize());
+
+    while (tokens.getLast().kind != parse.TokenKind.eof) {
+        try tokens.append(try tokenizer.tokenize());
+    }
+
+    //try testing.expectEqualSlices(parse.Token, &expected, try tokens.toOwnedSlice());
+
+    const result: []parse.Token = try tokens.toOwnedSlice();
+    for (expected, result[0..expected.len], 0..) |e, r, i| {
+        const e_name = @tagName(e);
+        const r_name = @tagName(r.kind);
+        if (!std.mem.eql(u8, e_name, r_name)) {
+            std.debug.print("At i: {d}, expected: {s}, found: {s} from: {}\n", .{i, e_name, r_name, r});
+            try testing.expect(false);
+        }
+    }
+
+    if (expected.len != result.len) {
+        std.debug.print("Expected length: {d}, found: {d}\n", .{expected.len, result.len});
+        try testing.expect(false);
+    }
+
+    alloc.reset();
+}
+
 test "ret 0" {
-    const testing = std.testing;
     const alloc = testing.allocator;
-    const test_util = @import("../test_util.zig");
 
     var program: ir.Program = .{
         .tys = .{.list = try std.ArrayList(ir.Ty).initCapacity(alloc, 100)},
@@ -85,9 +178,7 @@ test "ret 0" {
 }
 
 test "hello world" {
-    const testing = std.testing;
     const alloc = testing.allocator;
-    const test_util = @import("../test_util.zig");
 
     var program: ir.Program = .{
         .tys = .{.list = try std.ArrayList(ir.Ty).initCapacity(alloc, 2)},
@@ -208,9 +299,7 @@ test "hello world" {
 }
 
 test "factorial" {
-    const testing = std.testing;
     const alloc = testing.allocator;
-    const test_util = @import("../test_util.zig");
 
     var program: ir.Program = .{
         .tys = .{.list = try std.ArrayList(ir.Ty).initCapacity(alloc, 100)},
