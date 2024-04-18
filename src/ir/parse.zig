@@ -11,6 +11,7 @@ pub const TokenKind = union(enum) {
     @"export": void,
     module: void,
     // Instructions
+    @"return": void,
     jump: void,
     branch: void,
     @"if": void,
@@ -57,16 +58,14 @@ pub const Token = struct {
 
 pub const Tokenizer = struct {
     source: []const u8,
-    word_start: usize,
+    word_start: u32,
     location: Location,
-    alloc: std.mem.Allocator,
 
-    pub fn init(source: []const u8, alloc: std.mem.Allocator) Tokenizer {
+    pub fn init(source: []const u8) Tokenizer {
         return .{
             .source = source,
             .word_start = 0,
             .location = .{.line = 1, .char = 0},
-            .alloc = alloc,
         };
     }
 
@@ -83,7 +82,7 @@ pub const Tokenizer = struct {
         is_word,
     };
 
-    pub fn tokenize(self: *Tokenizer) !Token {
+    pub fn tokenize(self: *Tokenizer, alloc: std.mem.Allocator) !Token {
 
         if (self.word_start >= self.source.len) {
             return self.withLocation(.{.eof = void{}}, self.word_start);
@@ -107,8 +106,10 @@ pub const Tokenizer = struct {
                                 index += 1;
                                 self.location.line += 1;
                                 self.location.char = 0;
+                                self.word_start = index + 1;
                                 break :next_char;
                             },
+                            // TODO: Should the word_start also include the sigil?
                             '$' => {
                                 state = State.is_global;
                                 self.word_start = index + 1;
@@ -141,7 +142,17 @@ pub const Tokenizer = struct {
                                     // do nothing
                                 }
                                 else if (isDelimiter(char)) {
-                                    token = self.withLocation(fromDelimiter(char), index);
+                                    // We already know the token won't be longer than this
+                                    // character so we can just end it before looking at
+                                    // the next comment.
+                                    token = Token{
+                                        .kind = fromDelimiter(char),
+                                        .location = Location{
+                                            .line = self.location.line,
+                                            .char = self.location.char,
+                                        },
+                                    };
+                                    self.location.char += 1;
                                     self.word_start = index + 1;
                                     break :make_token;
                                 }
@@ -154,7 +165,7 @@ pub const Tokenizer = struct {
                         .is_global, .is_local,
                         .is_label, .is_module => switch (char) {
                             '\n' => {
-                                const word = try self.allocWord(index);
+                                const word = try self.allocWord(index, alloc);
                                 token = self.withLocation(switch (state) {
                                     .is_global => .{.gbl_id = word},
                                     .is_local =>  .{.lcl_id = word},
@@ -169,7 +180,7 @@ pub const Tokenizer = struct {
                             },
                             else => {
                                 if (std.ascii.isWhitespace(char)) {
-                                    const word = try self.allocWord(index);
+                                    const word = try self.allocWord(index, alloc);
                                     token = self.withLocation(switch (state) {
                                         .is_global => .{.gbl_id = word},
                                         .is_local =>  .{.lcl_id = word},
@@ -182,7 +193,7 @@ pub const Tokenizer = struct {
                                     break :make_token;
                                 }
                                 else if (isDelimiter(char)) {
-                                    const word = try self.allocWord(index);
+                                    const word = try self.allocWord(index, alloc);
                                     token = self.withLocation(switch (state) {
                                         .is_global => .{.gbl_id = word},
                                         .is_local =>  .{.lcl_id = word},
@@ -204,7 +215,7 @@ pub const Tokenizer = struct {
                                 @panic("todo");
                             },
                             '"' => {
-                                const word = try self.allocWord(index);
+                                const word = try self.allocWord(index, alloc);
                                 token = self.withLocation(.{.str = word}, index);
                                 self.location.char += 1;
                                 self.word_start = index + 1;
@@ -283,7 +294,7 @@ pub const Tokenizer = struct {
                                     token = keyword_token;
                                 }
                                 else {
-                                    const word = try self.allocWord(index);
+                                    const word = try self.allocWord(index, alloc);
                                     token = self.withLocation(.{.word = word}, index);
                                 }
                                 self.location.line += 1;
@@ -298,7 +309,7 @@ pub const Tokenizer = struct {
                                         token = keyword_token;
                                     }
                                     else {
-                                        const word = try self.allocWord(index);
+                                        const word = try self.allocWord(index, alloc);
                                         token = self.withLocation(.{.word = word}, index);
                                     }
                                     self.location.char += 1;
@@ -311,7 +322,7 @@ pub const Tokenizer = struct {
                                         token = keyword_token;
                                     }
                                     else {
-                                        const word = try self.allocWord(index);
+                                        const word = try self.allocWord(index, alloc);
                                         token = self.withLocation(.{.word = word}, index);
                                     }
                                     self.word_start = index; // don't consume char
@@ -343,41 +354,43 @@ pub const Tokenizer = struct {
                     break :make_token;
                 },
                 .is_global => {
-                    const word = try self.allocWord(index);
+                    const word = try self.allocWord(index, alloc);
                     token = self.withLocation(.{.gbl_id = word}, index);
                     break :make_token;
                 },
                 .is_local => {
-                    const word = try self.allocWord(index);
+                    const word = try self.allocWord(index, alloc);
                     token = self.withLocation(.{.lcl_id = word}, index);
                     break :make_token;
                 },
                 .is_label => {
-                    const word = try self.allocWord(index);
+                    const word = try self.allocWord(index, alloc);
                     token = self.withLocation(.{.lbl_id = word}, index);
                     break :make_token;
                 },
                 .is_module => {
-                    const word = try self.allocWord(index);
+                    const word = try self.allocWord(index, alloc);
                     token = self.withLocation(.{.mod_id = word}, index);
                     break :make_token;
                 },
                 .is_word => {
-                    const word = try self.allocWord(index);
+                    const word = try self.allocWord(index, alloc);
                     token = self.withLocation(.{.word = word}, index);
                     break :make_token;
                 },
                 .is_string => {
-                    const word = try self.allocWord(index);
+                    const word = try self.allocWord(index, alloc);
                     token = self.withLocation(.{.invalid = word}, index);
                     break :make_token;
                 },
                 .is_number => {
-                    token = self.withLocation(.{.int = @panic("todo")}, index);
+                    const number = try std.fmt.parseUnsigned(u64, self.source[self.word_start..index], 10);
+                    token = self.withLocation(.{.int = number}, index);
                     break :make_token;
                 },
                 .is_decimal => {
-                    token = self.withLocation(.{.float = @panic("todo")}, index);
+                    const number = try std.fmt.parseFloat(f64, self.source[self.word_start..index]);
+                    token = self.withLocation(.{.float = number}, index);
                     break :make_token;
                 },
                 .is_comment => {
@@ -386,21 +399,19 @@ pub const Tokenizer = struct {
                 },
             }
 
-            std.debug.panic("Unreachable");
+            @compileError("Unreachable");
         }
         
         return token;
     }
 
-    fn withLocation(self: *const Tokenizer, token_kind: TokenKind, word_end: usize) Token {
-        _ = word_end;
-        // if (self.location.char < word_end - self.word_start)
-        //     std.debug.panic("self.location.char: {d}, word_end: {d}, self.word_start: {d}", .{self.location.char, word_end, self.word_start});
+    fn withLocation(self: *const Tokenizer, token_kind: TokenKind, word_end: u32) Token {
+        // std.debug.print("line: {d},\t char: {d},\tstart: {d},\tend: {d},\tkind: {}\n", .{self.location.line, self.location.char, self.word_start, word_end, token_kind});
         return .{
             .kind = token_kind,
             .location = .{
                 .line = self.location.line,
-                .char = self.location.char, //@intCast(self.location.char - (word_end - self.word_start))
+                .char = self.location.char - (word_end - self.word_start),
             },
         };
     }
@@ -428,11 +439,11 @@ pub const Tokenizer = struct {
         };
     }
 
-    fn allocWord(self: *const Tokenizer, word_end: usize) ![*:0]u8 {
-        return try self.alloc.dupeZ(u8, self.source[self.word_start..word_end]);
+    fn allocWord(self: *const Tokenizer, word_end: u32, alloc: std.mem.Allocator) ![*:0]u8 {
+        return try alloc.dupeZ(u8, self.source[self.word_start..word_end]);
     }
 
-    fn fromKeyword(self: *const Tokenizer, word_end: usize) ?Token {
+    fn fromKeyword(self: *const Tokenizer, word_end: u32) ?Token {
         return if (std.mem.eql(u8, self.source[self.word_start..word_end],    "tmp")) self.withLocation(.{     .tmp  = void{}}, word_end)
         else   if (std.mem.eql(u8, self.source[self.word_start..word_end],    "let")) self.withLocation(.{     .let  = void{}}, word_end)
         else   if (std.mem.eql(u8, self.source[self.word_start..word_end],    "var")) self.withLocation(.{   .@"var" = void{}}, word_end)
@@ -440,6 +451,7 @@ pub const Tokenizer = struct {
         else   if (std.mem.eql(u8, self.source[self.word_start..word_end], "extern")) self.withLocation(.{.@"extern" = void{}}, word_end)
         else   if (std.mem.eql(u8, self.source[self.word_start..word_end], "export")) self.withLocation(.{.@"export" = void{}}, word_end)
         else   if (std.mem.eql(u8, self.source[self.word_start..word_end], "module")) self.withLocation(.{  .module  = void{}}, word_end)
+        else   if (std.mem.eql(u8, self.source[self.word_start..word_end], "return")) self.withLocation(.{.@"return" = void{}}, word_end)
         else   if (std.mem.eql(u8, self.source[self.word_start..word_end],   "jump")) self.withLocation(.{    .jump  = void{}}, word_end)
         else   if (std.mem.eql(u8, self.source[self.word_start..word_end], "branch")) self.withLocation(.{  .branch  = void{}}, word_end)
         else   if (std.mem.eql(u8, self.source[self.word_start..word_end],     "if")) self.withLocation(.{    .@"if" = void{}}, word_end)
@@ -453,4 +465,194 @@ pub const Tokenizer = struct {
         else null;
     }
 };
+
+pub fn parseProgram(source: []const u8, alloc: std.mem.Allocator) !ir.Program {
+    var tokenizer = Tokenizer.init(source);
+
+    var program = ir.Program{
+        .tys = .{.list = std.ArrayList(ir.Ty).init(alloc) },
+        .mods = .{.list = std.ArrayList(ir.Mod).init(alloc) },
+        .insts = .{.list = std.ArrayList(ir.Inst).init(alloc) },
+    };
+
+    const token = try tokenizer.tokenize(alloc);
+    switch (token.kind) {
+        .module => {
+            try parseModuleDecl(&tokenizer, &program, alloc);
+        },
+        .eof => {},
+        // TODO: Add compiler errors
+        else => {
+            panic("Expected 'module'", token);
+        },
+    }
+
+    return program;
+}
+
+fn parseModuleDecl(tokenizer: *Tokenizer, program: *ir.Program, alloc: std.mem.Allocator) !void {
+    const token = try tokenizer.tokenize(alloc);
+    const mod = switch (token.kind) {
+        .@"{" => blck: {
+            const ptr = try program.mods.list.addOne();
+            ptr.* = ir.Mod{
+                .ident = "",
+                .funcs = .{.list = std.ArrayList(ir.Func).init(alloc) },
+                .globals = .{.list = std.ArrayList(ir.Global).init(alloc) },
+            };
+            break :blck ptr;
+        },
+        .mod_id => |ident| blck: {
+            const ptr = try program.mods.list.addOne();
+            ptr.* = ir.Mod{
+                .ident = std.mem.sliceTo(ident, 0),
+                .funcs = .{.list = std.ArrayList(ir.Func).init(alloc) },
+                .globals = .{.list = std.ArrayList(ir.Global).init(alloc) },
+            };
+
+            const token_ = try tokenizer.tokenize(alloc);
+            break :blck switch (token_.kind) {
+                .@"{" => ptr,
+                else => {
+                    panic("Expected '{'", token_);
+                },
+            };
+        },
+        else => {
+            panic("Expected '{' or module identifier", token);
+        },
+    };
+
+    try parseModule(tokenizer, &program.tys, mod, &program.insts, alloc);
+}
+
+fn parseModule(tokenizer: *Tokenizer, tys: *ir.TyList, mod: *ir.Mod, insts: *ir.InstList, alloc: std.mem.Allocator) !void {
+    while (true) {
+        const token = try tokenizer.tokenize(alloc);
+        switch (token.kind) {
+            .@"}" => return,
+            .def => try parseDefDecl(tokenizer, tys, mod, insts, false, false, alloc),
+            .@"extern" => try parseDefDecl(tokenizer, tys, mod, insts, false, true, alloc),
+            .@"export" => {
+                const token_ = try tokenizer.tokenize(alloc);
+                switch (token_.kind) {
+                    .def => try parseDefDecl(tokenizer, tys, mod, insts, true, false, alloc),
+                    else => {
+                        panic("Expected 'def'", token_);
+                    },
+                }
+            },
+            else => {
+                panic("Expected 'def', 'extern', or 'export'", token);
+            },
+        }
+    }
+}
+
+fn parseDefDecl(tokenizer: *Tokenizer, tys: *ir.TyList, mod: *ir.Mod, insts: *ir.InstList, comptime exported: bool, comptime external: bool, alloc: std.mem.Allocator) !void {
+    comptime if (exported and external) @compileError("Cannot be both 'export' and 'extern'");
+
+    const ident_token = try tokenizer.tokenize(alloc);
+    const ident = switch (ident_token.kind) {
+        .gbl_id => |ident| ident,
+        else => {
+            panic("Expected global identifier", ident_token);
+        },
+    };
+
+    if (external) {
+        @panic("todo");
+    }
+
+    if ((try tokenizer.tokenize(alloc)).kind != TokenKind.@"(") {
+        @panic("Expected '('");
+    }
+
+    var indices = std.ArrayList(ir.InstList.Index).init(alloc);
+
+    while (true) {
+        const token = try tokenizer.tokenize(alloc);
+        switch (token.kind) {
+            .@")" => break,
+            else => {
+                panic("Expected ')'", token);
+            },
+        }
+    }
+
+    // TODO: Parse return type
+    const ret_ty = try parseType(tokenizer, tys, alloc);
+
+    if ((try tokenizer.tokenize(alloc)).kind != TokenKind.@"{") {
+        @panic("Expected '{'");
+    }
+
+    while (true) {
+        const token = try tokenizer.tokenize(alloc);
+        switch (token.kind) {
+            .@"}" => break,
+            .@"return" => {
+                const inst = try insts.add(ir.Inst{
+                    .ret = .{
+                        .expr = try parseArg(tokenizer, mod, insts, &indices, alloc),
+                    },
+                });
+                try indices.append(inst);
+            },
+            else => {
+                panic("Expected 'return' or '}'", token);
+            },
+        }
+    }
+
+    try mod.funcs.list.append(ir.Func{
+        .internal = .{
+            .ident = std.mem.sliceTo(ident, 0),
+            .ret_ty = ret_ty,
+            .exported = exported,
+            .indices = indices,
+        },
+    });
+}
+
+fn parseType(tokenizer: *Tokenizer, tys: *ir.TyList, alloc: std.mem.Allocator) !ir.TyList.Index {
+    _ = tys;
+
+    const token = try tokenizer.tokenize(alloc);
+    switch (token.kind) {
+        .word => |ident| {
+            const slice = std.mem.sliceTo(ident, 0);
+            const ty = if (std.mem.eql(u8, slice, "UInt32")) ir.TyList.Index.uint32_ty
+            else @panic("Unknown type identifier");
+
+            alloc.free(slice);
+            return ty;
+        },
+        else => {
+            @panic("Expected type identifier");
+        },
+    }
+}
+
+fn parseArg(tokenizer: *Tokenizer, mod: *ir.Mod, insts: *ir.InstList, indices: *std.ArrayList(ir.InstList.Index), alloc: std.mem.Allocator) !ir.Inst.Expr.Arg {
+    _ = mod;
+    _ = insts;
+    _ = indices;
+
+    const token = try tokenizer.tokenize(alloc);
+    switch (token.kind) {
+        .int => |int| {
+            return ir.Inst.Expr.Arg{
+                .uint32 = @truncate(int),
+            };
+        },
+        else => {
+            @panic("Expected integer literal");
+        }
+    }
+}
+
+fn panic(comptime message: []const u8, actual: Token) noreturn {
+    std.debug.panic("{s}, but instead found: '{s}' at line {d}, char {d}", .{message, @tagName(actual.kind), actual.location.line, actual.location.char});
+}
 
