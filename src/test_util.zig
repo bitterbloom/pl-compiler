@@ -18,7 +18,8 @@ pub fn testCompileAndRun(expected: []const u8, source: []const u8) !void {
 
         // TODO: We could also use `sh -c` to run qbe, cc, and the executable instead of spawning a new process for each?
 
-        var qbe = try std.ChildProcess.exec(.{.argv = &.{"qbe", "-o", asm_file_name, qbe_file_name}, .cwd = dir_path, .cwd_dir = dir, .allocator = alloc, .max_output_bytes = 10 * 1024}); // fails if qbe was not found
+        const extra_qbe_args = comptime if (@import("builtin").os.tag == .windows) .{"-t", "amd64_win"} else .{};
+        var qbe = try std.ChildProcess.exec(.{.argv = &(.{"qbe"} ++ extra_qbe_args ++ .{"-o", asm_file_name, qbe_file_name}), .cwd = dir_path, .cwd_dir = dir, .allocator = alloc, .max_output_bytes = 10 * 1024}); // fails if qbe was not found
         //try std.testing.expectEqual(qbe.term, std.ChildProcess.Term{.Exited = 0}); // fails if qbe failed
         defer { alloc.free(qbe.stdout); alloc.free(qbe.stderr); }
         try testing.expectEqualStrings("", qbe.stderr); // fails if qbe printed to stderr

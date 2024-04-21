@@ -18,7 +18,6 @@ pkgs.stdenv.mkDerivation {
     pkgs.qbe
   ];
 
-  # TODO: Change compile to build
   buildPhase = ''
     echo "building the compiler"
     export XDG_CACHE_HOME=$TMP/.cache
