@@ -35,11 +35,13 @@ jobs:
           echo INFO: GITHUB_PATH
           echo $GITHUB_PATH
           echo INFO: pwd
+          echo cat $GITHUB_PATH
+          cat $GITHUB_PATH
           pwd
           echo INFO: $(pwd)/zig-windows-x86_64-0.11.0 >> \$GITHUB_PATH
           echo "$(pwd)/zig-windows-x86_64-0.11.0" >> $GITHUB_PATH
-          echo INFO: GITHUB_PATH
-          echo $GITHUB_PATH
+          echo cat $GITHUB_PATH
+          cat $GITHUB_PATH
           echo INFO: zig version
           zig version
       - name: Install GCC 13.2.0
