@@ -4,6 +4,8 @@ const alloc = testing.allocator;
 
 pub fn testCompileAndRun(expected: []const u8, source: []const u8) !void {
     const dir = testing.tmpDir(.{}).dir;
+    const dir_path = try dir.realpathAlloc(alloc, ".");
+    alloc.free(dir_path);
     const qbe_file_name = "./test.qbe";
     const asm_file_name = "./test.s";
     const exe_file_name = "./test";
@@ -16,7 +18,7 @@ pub fn testCompileAndRun(expected: []const u8, source: []const u8) !void {
 
         // TODO: We could also use `sh -c` to run qbe, cc, and the executable instead of spawning a new process for each?
 
-        var qbe = try std.ChildProcess.exec(.{.argv = &.{"qbe", qbe_file_name, "-o", asm_file_name}, .cwd_dir = dir, .allocator = alloc, .max_output_bytes = 10 * 1024}); // fails if qbe was not found
+        var qbe = try std.ChildProcess.exec(.{.argv = &.{"qbe", "-o", asm_file_name, qbe_file_name}, .cwd = dir_path, .cwd_dir = dir, .allocator = alloc, .max_output_bytes = 10 * 1024}); // fails if qbe was not found
         //try std.testing.expectEqual(qbe.term, std.ChildProcess.Term{.Exited = 0}); // fails if qbe failed
         defer { alloc.free(qbe.stdout); alloc.free(qbe.stderr); }
         try testing.expectEqualStrings("", qbe.stderr); // fails if qbe printed to stderr
@@ -25,7 +27,7 @@ pub fn testCompileAndRun(expected: []const u8, source: []const u8) !void {
     }
 
     // Run cc (links with libc)
-    var cc = try std.ChildProcess.exec(.{.argv = &.{"cc", asm_file_name, "-o", exe_file_name}, .cwd_dir = dir, .allocator = alloc, .max_output_bytes = 10 * 1024}); // fails if cc was not found
+    var cc = try std.ChildProcess.exec(.{.argv = &.{"cc", "-o", exe_file_name, asm_file_name}, .cwd = dir_path, .cwd_dir = dir, .allocator = alloc, .max_output_bytes = 10 * 1024}); // fails if cc was not found
     //try std.testing.expectEqual(cc.term, std.ChildProcess.Term{.Exited = 0}); // fails if cc failed
     defer { alloc.free(cc.stdout); alloc.free(cc.stderr); }
     try testing.expectEqualStrings("", cc.stderr); // fails if cc printed to stderr
@@ -33,7 +35,7 @@ pub fn testCompileAndRun(expected: []const u8, source: []const u8) !void {
     try dir.access(exe_file_name, .{ .mode = .read_only }); // fails if exe file was not created
 
     // Run the executable
-    var exe = try std.ChildProcess.exec(.{.argv = &.{exe_file_name}, .cwd_dir = dir, .allocator = alloc, .max_output_bytes = 10 * 1024}); // fails if exe was not found
+    var exe = try std.ChildProcess.exec(.{.argv = &.{exe_file_name}, .cwd = dir_path, .cwd_dir = dir, .allocator = alloc, .max_output_bytes = 10 * 1024}); // fails if exe was not found
     //try std.testing.expect(exe.term, std.ChildProcess.Term{.Exited = 0});
     defer { alloc.free(exe.stdout); alloc.free(exe.stderr); }
     try testing.expectEqualStrings("", exe.stderr); // fails if exe printed to stderr
