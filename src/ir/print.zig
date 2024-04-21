@@ -6,6 +6,7 @@ pub fn printProgram(out: anytype, program: ir.Program) !void {
         try out.writeAll("module ");
 
         if (mod.ident.len >= 1) {
+            try out.writeAll("#");
             try out.writeAll(mod.ident);
             try out.writeAll(" ");
         }

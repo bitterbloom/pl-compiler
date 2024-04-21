@@ -7,110 +7,6 @@ const to_qbe = @import("./to_qbe.zig");
 const parse = @import("./parse.zig");
 const print = @import("./print.zig");
 
-test "tokenize" {
-    var buffer: [100_000]u8 = undefined;
-    var alloc = std.heap.FixedBufferAllocator.init(&buffer);
-    //const alloc = testing.allocator;
-
-    const string =
-      \\module {
-      \\    def $fmt []UInt8 = "Hello, World!\0"
-      \\    extern $puts(^[]UInt8, ) UInt32
-      \\    export def $main() UInt32 {
-      \\        tmp %r UInt32
-      \\        %r = $puts($fmt, )
-      \\        return %r
-      \\    }
-      \\}
-      \\
-    ;
-
-    const expected = [_]parse.Token{
-        .{.kind = .{.module    = void{}},        .location = .{.line =  1, .char =  0}},
-        .{.kind = .{.@"{"      = void{}},        .location = .{.line =  1, .char =  7}},
-        .{.kind = .{.def       = void{}},        .location = .{.line =  2, .char =  4}},
-        .{.kind = .{.gbl_id    = "fmt" },        .location = .{.line =  2, .char =  9}},
-        .{.kind = .{.@"["      = void{}},        .location = .{.line =  2, .char = 13}},
-        .{.kind = .{.@"]"      = void{}},        .location = .{.line =  2, .char = 14}},
-        .{.kind = .{.word      = "UInt8" },      .location = .{.line =  2, .char = 15}},
-        .{.kind = .{.@"="      = void{}},        .location = .{.line =  2, .char = 21}},
-        .{.kind = .{.str = "Hello, World!\\0" }, .location = .{.line =  2, .char = 24}},
-        .{.kind = .{.@"extern" = void{}},        .location = .{.line =  3, .char =  4}},
-        .{.kind = .{.gbl_id    = "puts" },       .location = .{.line =  3, .char = 12}},
-        .{.kind = .{.@"("      = void{}},        .location = .{.line =  3, .char = 16}},
-        .{.kind = .{.word      = "^" },          .location = .{.line =  3, .char = 17}},
-        .{.kind = .{.@"["      = void{}},        .location = .{.line =  3, .char = 18}},
-        .{.kind = .{.@"]"      = void{}},        .location = .{.line =  3, .char = 19}},
-        .{.kind = .{.word      = "UInt8" },      .location = .{.line =  3, .char = 20}},
-        .{.kind = .{.@","      = void{}},        .location = .{.line =  3, .char = 25}},
-        .{.kind = .{.@")"      = void{}},        .location = .{.line =  3, .char = 27}},
-        .{.kind = .{.word      = "UInt32" },     .location = .{.line =  3, .char = 29}},
-        .{.kind = .{.@"export" = void{}},        .location = .{.line =  4, .char =  4}},
-        .{.kind = .{.def       = void{}},        .location = .{.line =  4, .char = 11}},
-        .{.kind = .{.gbl_id    = "main" },       .location = .{.line =  4, .char = 16}},
-        .{.kind = .{.@"("      = void{}},        .location = .{.line =  4, .char = 20}},
-        .{.kind = .{.@")"      = void{}},        .location = .{.line =  4, .char = 21}},
-        .{.kind = .{.word      = "UInt32" },     .location = .{.line =  4, .char = 23}},
-        .{.kind = .{.@"{"      = void{}},        .location = .{.line =  4, .char = 30}},
-        .{.kind = .{.tmp       = void{}},        .location = .{.line =  5, .char =  8}},
-        .{.kind = .{.lcl_id    = "r" },          .location = .{.line =  5, .char = 13}},
-        .{.kind = .{.word      = "UInt32" },     .location = .{.line =  5, .char = 15}},
-        .{.kind = .{.lcl_id    = "r" },          .location = .{.line =  6, .char =  9}},
-        .{.kind = .{.@"="      = void{}},        .location = .{.line =  6, .char = 11}},
-        .{.kind = .{.gbl_id    = "puts" },       .location = .{.line =  6, .char = 14}},
-        .{.kind = .{.@"("      = void{}},        .location = .{.line =  6, .char = 18}},
-        .{.kind = .{.gbl_id    = "fmt" },        .location = .{.line =  6, .char = 20}},
-        .{.kind = .{.@","      = void{}},        .location = .{.line =  6, .char = 23}},
-        .{.kind = .{.@")"      = void{}},        .location = .{.line =  6, .char = 25}},
-        .{.kind = .{.@"return" = void{}},        .location = .{.line =  7, .char =  8}},
-        .{.kind = .{.lcl_id    = "r" },          .location = .{.line =  7, .char = 16}},
-        .{.kind = .{.@"}"      = void{}},        .location = .{.line =  8, .char =  4}},
-        .{.kind = .{.@"}"      = void{}},        .location = .{.line =  9, .char =  0}},
-        .{.kind = .{.eof       = void{}},        .location = .{.line = 10, .char =  0}},
-    };
-
-    var tokens = try std.ArrayList(parse.Token).initCapacity(alloc.allocator(), 100);
-
-    var tokenizer = parse.Tokenizer.init(string);
-    try tokens.append(try tokenizer.tokenize(alloc.allocator()));
-
-    while (tokens.getLast().kind != parse.TokenKind.eof) {
-        try tokens.append(try tokenizer.tokenize(alloc.allocator()));
-    }
-
-    const actual: []parse.Token = try tokens.toOwnedSlice();
-    
-    // Partly from std.testing.expectEqualDeep:
-    for (expected, actual[0..expected.len], 0..) |e, a, i| {
-        const Tag = std.meta.Tag(@TypeOf(e.kind));
-        std.testing.expectEqual(@as(Tag, e.kind), @as(Tag, a.kind)) catch
-            std.debug.panic("Incorrect tag at i: {d}, expected: {s}, actual: {s}\n", .{i, @tagName(e.kind), @tagName(a.kind)});
-    }
-    for (expected, actual[0..expected.len], 0..) |e, a, i| {
-        switch (e.kind) {
-            inline else => |e_val, e_tag| {
-                if (@TypeOf(e_val) == [*:0]const u8) {
-                    const e_str = @as([*:0]const u8, e_val);
-                    const a_str = @as([*:0]const u8, @field(a.kind, @tagName(e_tag)));
-                    if (std.mem.orderZ(u8, e_str, a_str) != std.math.Order.eq)
-                        std.debug.panic("Incorrect string at i: {d}, expected: {s}, actual: {s} kind: {s}\n", .{i, e_str, a_str, @tagName(a.kind)});
-                }
-            }
-        }
-    }
-    for (expected, actual[0..expected.len], 0..) |e, a, i| {
-        std.testing.expectEqual(e.location, a.location) catch
-            std.debug.panic("Incorrect location at i: {d}, expected: {}, actual: {} kind: {s}\n", .{i, e.location, a.location, @tagName(a.kind)});
-    }
-
-    if (expected.len != actual.len) {
-        std.debug.print("Expected length: {d}, found: {d}\n", .{expected.len, actual.len});
-        try testing.expect(false);
-    }
-
-    alloc.reset();
-}
-
 test "ret 0" {
     const alloc = testing.allocator;
 
@@ -161,8 +57,18 @@ test "ret 0" {
 
     try testing.expectEqualStrings(expected_ir, actual_ir);
 
-    var parsed_program = try parse.parseProgram(expected_ir, alloc);
+    var parse_result = try parse.parseProgram(expected_ir, alloc);
+    var parse_errors = parse_result[0];
+    var parsed_program = parse_result[1];
+    defer alloc.free(parse_errors);
     defer parsed_program.deinit(alloc);
+
+    if (parse_errors.len > 0) {
+        for (parse_errors) |err| {
+            std.debug.print("{s}\n", .{try err.fmt(alloc)});
+        }
+        try testing.expect(false);
+    }
 
     try print.printProgram(out, parsed_program);
 

@@ -1,7 +1,7 @@
 const std = @import("std");
 const ir = @import("./types.zig");
 
-pub const TokenKind = union(enum) {
+const TokenKind = union(enum) {
     // Keywords
     tmp: void,
     let: void,
@@ -46,28 +46,26 @@ pub const TokenKind = union(enum) {
     invalid: [*:0]const u8,
 };
 
-pub const Location = struct {
+const Location = struct {
     line: u32,
     char: u32,
+
+    const first_line = 1;
+    const first_char = 1;
 };
 
-pub const Token = struct {
+const Token = struct {
     kind: TokenKind,
     location: Location,
 };
 
-pub const Tokenizer = struct {
+const Tokenizer = struct {
     source: []const u8,
-    word_start: u32,
-    location: Location,
-
-    pub fn init(source: []const u8) Tokenizer {
-        return .{
-            .source = source,
-            .word_start = 0,
-            .location = .{.line = 1, .char = 0},
-        };
-    }
+    word_start: u32 = 0,
+    location: Location = .{
+        .line = Location.first_line,
+        .char = Location.first_char
+    },
 
     const State = enum {
         is_empty,
@@ -82,8 +80,7 @@ pub const Tokenizer = struct {
         is_word,
     };
 
-    pub fn tokenize(self: *Tokenizer, alloc: std.mem.Allocator) !Token {
-
+    fn tokenize(self: *Tokenizer, alloc: std.mem.Allocator) !Token {
         if (self.word_start >= self.source.len) {
             return self.withLocation(.{.eof = void{}}, self.word_start);
         }
@@ -105,7 +102,7 @@ pub const Tokenizer = struct {
                             '\n' => {
                                 index += 1;
                                 self.location.line += 1;
-                                self.location.char = 0;
+                                self.location.char = Location.first_char;
                                 self.word_start = index + 1;
                                 break :next_char;
                             },
@@ -174,7 +171,7 @@ pub const Tokenizer = struct {
                                     else => unreachable,
                                 }, index);
                                 self.location.line += 1;
-                                self.location.char = 0;
+                                self.location.char = Location.first_char;
                                 self.word_start = index + 1;
                                 break :make_token;
                             },
@@ -280,7 +277,7 @@ pub const Tokenizer = struct {
                             '\n' => {
                                 state = State.is_empty;
                                 self.location.line += 1;
-                                self.location.char = 0;
+                                self.location.char = Location.first_char;
                                 self.word_start = index + 1;
                             },
                             else => {
@@ -298,7 +295,7 @@ pub const Tokenizer = struct {
                                     token = self.withLocation(.{.word = word}, index);
                                 }
                                 self.location.line += 1;
-                                self.location.char = 0;
+                                self.location.char = Location.first_char;
                                 self.word_start = index + 1;
                                 break :make_token;
                             },
@@ -407,7 +404,7 @@ pub const Tokenizer = struct {
 
     fn withLocation(self: *const Tokenizer, token_kind: TokenKind, word_end: u32) Token {
         // std.debug.print("line: {d},\t char: {d},\tstart: {d},\tend: {d},\tkind: {}\n", .{self.location.line, self.location.char, self.word_start, word_end, token_kind});
-        return .{
+        return Token{
             .kind = token_kind,
             .location = .{
                 .line = self.location.line,
@@ -466,142 +463,175 @@ pub const Tokenizer = struct {
     }
 };
 
-pub fn parseProgram(source: []const u8, alloc: std.mem.Allocator) !ir.Program {
-    var tokenizer = Tokenizer.init(source);
+pub const ParseError = struct {
+    ///This string is not owned, and most likely a compile time string.
+    message: []const u8,
+    actual: Token,
 
-    var program = ir.Program{
-        .tys = .{.list = std.ArrayList(ir.Ty).init(alloc) },
-        .mods = .{.list = std.ArrayList(ir.Mod).init(alloc) },
-        .insts = .{.list = std.ArrayList(ir.Inst).init(alloc) },
-    };
+    pub fn fmt(self: ParseError, alloc: std.mem.Allocator) ![]const u8 {
+        return std.fmt.allocPrint(
+            alloc,
+            "{s}, but instead found: '{s}' at line {d}, char {d}",
+            .{
+                self.message,
+                @tagName(self.actual.kind),
+                self.actual.location.line,
+                self.actual.location.char
+            },
+        );
+    }
+};
 
-    const token = try tokenizer.tokenize(alloc);
-    switch (token.kind) {
-        .module => {
-            try parseModuleDecl(&tokenizer, &program, alloc);
-        },
-        .eof => {},
-        // TODO: Add compiler errors
-        else => {
-            panic("Expected 'module'", token);
-        },
+const Parser = struct {
+    tokenizer: Tokenizer,
+    program: ir.Program,
+    errors: std.ArrayListUnmanaged(ParseError) = .{},
+    alloc: std.mem.Allocator,
+
+    inline fn tokenize(self: *Parser) !Token {
+        return self.tokenizer.tokenize(self.alloc);
     }
 
-    return program;
+    inline fn addError(self: *Parser, comptime message: []const u8, actual: Token) !void {
+        //std.debug.print("Added error: {s}\n", .{message});
+        try self.errors.append(self.alloc, .{.message = message, .actual = actual});
+    }
+};
+
+pub fn parseProgram(source: []const u8, alloc: std.mem.Allocator) !struct {[]const ParseError, ir.Program} {
+    var parser = Parser{
+        .tokenizer = Tokenizer{
+            .source = source,
+        },
+        .program = ir.Program{
+            .tys = .{.list = std.ArrayList(ir.Ty).init(alloc) },
+            .mods = .{.list = std.ArrayList(ir.Mod).init(alloc) },
+            .insts = .{.list = std.ArrayList(ir.Inst).init(alloc) },
+        },
+        .errors = std.ArrayListUnmanaged(ParseError){},
+        .alloc = alloc,
+    };
+
+    while (true) {
+        const token = try parser.tokenize();
+        switch (token.kind) {
+            .module => {
+                try parseModuleDecl(&parser);
+                continue;
+            },
+            .eof => break,
+            else => {
+                try parser.addError("Expected 'module'", token);
+                break;
+            },
+        }
+    }
+
+    return .{
+        try parser.errors.toOwnedSlice(alloc),
+        parser.program
+    };
 }
 
-fn parseModuleDecl(tokenizer: *Tokenizer, program: *ir.Program, alloc: std.mem.Allocator) !void {
-    const token = try tokenizer.tokenize(alloc);
+fn parseModuleDecl(parser: *Parser) !void {
+    const token = try parser.tokenize();
     const mod = switch (token.kind) {
         .@"{" => blck: {
-            const ptr = try program.mods.list.addOne();
+            const ptr = try parser.program.mods.list.addOne();
             ptr.* = ir.Mod{
                 .ident = "",
-                .funcs = .{.list = std.ArrayList(ir.Func).init(alloc) },
-                .globals = .{.list = std.ArrayList(ir.Global).init(alloc) },
+                .funcs = .{.list = std.ArrayList(ir.Func).init(parser.alloc) },
+                .globals = .{.list = std.ArrayList(ir.Global).init(parser.alloc) },
             };
             break :blck ptr;
         },
         .mod_id => |ident| blck: {
-            const ptr = try program.mods.list.addOne();
+            const ptr = try parser.program.mods.list.addOne();
             ptr.* = ir.Mod{
                 .ident = std.mem.sliceTo(ident, 0),
-                .funcs = .{.list = std.ArrayList(ir.Func).init(alloc) },
-                .globals = .{.list = std.ArrayList(ir.Global).init(alloc) },
+                .funcs = .{.list = std.ArrayList(ir.Func).init(parser.alloc) },
+                .globals = .{.list = std.ArrayList(ir.Global).init(parser.alloc) },
             };
 
-            const token_ = try tokenizer.tokenize(alloc);
+            const token_ = try parser.tokenize();
             break :blck switch (token_.kind) {
                 .@"{" => ptr,
-                else => {
-                    panic("Expected '{'", token_);
-                },
+                else => return parser.addError("Expected '{'", token_),
             };
         },
-        else => {
-            panic("Expected '{' or module identifier", token);
-        },
+        else => return parser.addError("Expected '{' or module identifier", token),
     };
 
-    try parseModule(tokenizer, &program.tys, mod, &program.insts, alloc);
+    return parseModule(parser, mod);
 }
 
-fn parseModule(tokenizer: *Tokenizer, tys: *ir.TyList, mod: *ir.Mod, insts: *ir.InstList, alloc: std.mem.Allocator) !void {
+fn parseModule(parser: *Parser, mod: *ir.Mod) !void {
     while (true) {
-        const token = try tokenizer.tokenize(alloc);
+        const token = try parser.tokenize();
         switch (token.kind) {
             .@"}" => return,
-            .def => try parseDefDecl(tokenizer, tys, mod, insts, false, false, alloc),
-            .@"extern" => try parseDefDecl(tokenizer, tys, mod, insts, false, true, alloc),
+            .def => try parseDefDecl(parser, mod, false, false),
+            .@"extern" => try parseDefDecl(parser, mod, false, true),
             .@"export" => {
-                const token_ = try tokenizer.tokenize(alloc);
+                const token_ = try parser.tokenize();
                 switch (token_.kind) {
-                    .def => try parseDefDecl(tokenizer, tys, mod, insts, true, false, alloc),
-                    else => {
-                        panic("Expected 'def'", token_);
-                    },
+                    .def => try parseDefDecl(parser, mod, true, false),
+                    else => return parser.addError("Expected 'def'", token_),
                 }
             },
-            else => {
-                panic("Expected 'def', 'extern', or 'export'", token);
-            },
+            else => return parser.addError("Expected 'def', 'extern', or 'export'", token),
         }
     }
 }
 
-fn parseDefDecl(tokenizer: *Tokenizer, tys: *ir.TyList, mod: *ir.Mod, insts: *ir.InstList, comptime exported: bool, comptime external: bool, alloc: std.mem.Allocator) !void {
+fn parseDefDecl(parser: *Parser, mod: *ir.Mod, comptime exported: bool, comptime external: bool) !void {
     comptime if (exported and external) @compileError("Cannot be both 'export' and 'extern'");
 
-    const ident_token = try tokenizer.tokenize(alloc);
+    const ident_token = try parser.tokenize();
     const ident = switch (ident_token.kind) {
         .gbl_id => |ident| ident,
-        else => {
-            panic("Expected global identifier", ident_token);
-        },
+        else => return parser.addError("Expected global identifier", ident_token),
     };
 
     if (external) {
         @panic("todo");
     }
 
-    if ((try tokenizer.tokenize(alloc)).kind != TokenKind.@"(") {
-        @panic("Expected '('");
+    const paren_token = try parser.tokenize();
+    if (paren_token.kind != TokenKind.@"(") {
+        return parser.addError("Expected '('", paren_token);
     }
 
-    var indices = std.ArrayList(ir.InstList.Index).init(alloc);
+    var indices = std.ArrayList(ir.InstList.Index).init(parser.alloc);
 
     while (true) {
-        const token = try tokenizer.tokenize(alloc);
+        const token = try parser.tokenize();
         switch (token.kind) {
             .@")" => break,
-            else => {
-                panic("Expected ')'", token);
-            },
+            else => return parser.addError("Expected ')'", token),
         }
     }
 
-    // TODO: Parse return type
-    const ret_ty = try parseType(tokenizer, tys, alloc);
+    const ret_ty = try parseType(parser) orelse return;
 
-    if ((try tokenizer.tokenize(alloc)).kind != TokenKind.@"{") {
-        @panic("Expected '{'");
+    const brace_token = try parser.tokenize();
+    if (brace_token.kind != TokenKind.@"{") {
+        return parser.addError("Expected '{'", brace_token);
     }
 
     while (true) {
-        const token = try tokenizer.tokenize(alloc);
+        const token = try parser.tokenize();
         switch (token.kind) {
             .@"}" => break,
             .@"return" => {
-                const inst = try insts.add(ir.Inst{
+                const inst = try parser.program.insts.add(ir.Inst{
                     .ret = .{
-                        .expr = try parseArg(tokenizer, mod, insts, &indices, alloc),
+                        .expr = try parseArg(parser, mod, &indices) orelse return,
                     },
                 });
                 try indices.append(inst);
             },
-            else => {
-                panic("Expected 'return' or '}'", token);
-            },
+            else => return parser.addError("Expected 'return'", token),
         }
     }
 
@@ -615,31 +645,29 @@ fn parseDefDecl(tokenizer: *Tokenizer, tys: *ir.TyList, mod: *ir.Mod, insts: *ir
     });
 }
 
-fn parseType(tokenizer: *Tokenizer, tys: *ir.TyList, alloc: std.mem.Allocator) !ir.TyList.Index {
-    _ = tys;
-
-    const token = try tokenizer.tokenize(alloc);
+fn parseType(parser: *Parser) !?ir.TyList.Index {
+    const token = try parser.tokenize();
     switch (token.kind) {
         .word => |ident| {
             const slice = std.mem.sliceTo(ident, 0);
             const ty = if (std.mem.eql(u8, slice, "UInt32")) ir.TyList.Index.uint32_ty
             else @panic("Unknown type identifier");
 
-            alloc.free(slice);
+            parser.alloc.free(slice);
             return ty;
         },
         else => {
-            @panic("Expected type identifier");
+            try parser.addError("Expected type identifier", token);
+            return null;
         },
     }
 }
 
-fn parseArg(tokenizer: *Tokenizer, mod: *ir.Mod, insts: *ir.InstList, indices: *std.ArrayList(ir.InstList.Index), alloc: std.mem.Allocator) !ir.Inst.Expr.Arg {
+fn parseArg(parser: *Parser, mod: *ir.Mod, indices: *std.ArrayList(ir.InstList.Index)) !?ir.Inst.Expr.Arg {
     _ = mod;
-    _ = insts;
     _ = indices;
 
-    const token = try tokenizer.tokenize(alloc);
+    const token = try parser.tokenize();
     switch (token.kind) {
         .int => |int| {
             return ir.Inst.Expr.Arg{
@@ -647,12 +675,118 @@ fn parseArg(tokenizer: *Tokenizer, mod: *ir.Mod, insts: *ir.InstList, indices: *
             };
         },
         else => {
-            @panic("Expected integer literal");
+            try parser.addError("Expected integer literal", token);
+            return null;
         }
     }
 }
 
-fn panic(comptime message: []const u8, actual: Token) noreturn {
-    std.debug.panic("{s}, but instead found: '{s}' at line {d}, char {d}", .{message, @tagName(actual.kind), actual.location.line, actual.location.char});
+test "hello world" {
+    const testing = std.testing;
+
+    var buffer: [100_000]u8 = undefined;
+    var alloc = std.heap.FixedBufferAllocator.init(&buffer);
+    //const alloc = testing.allocator;
+
+    const string =
+      \\module {
+      \\    def $fmt []UInt8 = "Hello, World!\0"
+      \\    extern $puts(^[]UInt8, ) UInt32
+      \\    export def $main() UInt32 {
+      \\        tmp %r UInt32
+      \\        %r = $puts($fmt, )
+      \\        return %r
+      \\    }
+      \\}
+      \\
+    ;
+
+    const expected = [_]Token{
+        .{.kind = .{.module    = void{}},        .location = .{.line =  1, .char =  1}},
+        .{.kind = .{.@"{"      = void{}},        .location = .{.line =  1, .char =  8}},
+        .{.kind = .{.def       = void{}},        .location = .{.line =  2, .char =  5}},
+        .{.kind = .{.gbl_id    = "fmt" },        .location = .{.line =  2, .char = 10}},
+        .{.kind = .{.@"["      = void{}},        .location = .{.line =  2, .char = 14}},
+        .{.kind = .{.@"]"      = void{}},        .location = .{.line =  2, .char = 15}},
+        .{.kind = .{.word      = "UInt8" },      .location = .{.line =  2, .char = 16}},
+        .{.kind = .{.@"="      = void{}},        .location = .{.line =  2, .char = 22}},
+        .{.kind = .{.str = "Hello, World!\\0" }, .location = .{.line =  2, .char = 25}},
+        .{.kind = .{.@"extern" = void{}},        .location = .{.line =  3, .char =  5}},
+        .{.kind = .{.gbl_id    = "puts" },       .location = .{.line =  3, .char = 13}},
+        .{.kind = .{.@"("      = void{}},        .location = .{.line =  3, .char = 17}},
+        .{.kind = .{.word      = "^" },          .location = .{.line =  3, .char = 18}},
+        .{.kind = .{.@"["      = void{}},        .location = .{.line =  3, .char = 19}},
+        .{.kind = .{.@"]"      = void{}},        .location = .{.line =  3, .char = 20}},
+        .{.kind = .{.word      = "UInt8" },      .location = .{.line =  3, .char = 21}},
+        .{.kind = .{.@","      = void{}},        .location = .{.line =  3, .char = 26}},
+        .{.kind = .{.@")"      = void{}},        .location = .{.line =  3, .char = 28}},
+        .{.kind = .{.word      = "UInt32" },     .location = .{.line =  3, .char = 30}},
+        .{.kind = .{.@"export" = void{}},        .location = .{.line =  4, .char =  5}},
+        .{.kind = .{.def       = void{}},        .location = .{.line =  4, .char = 12}},
+        .{.kind = .{.gbl_id    = "main" },       .location = .{.line =  4, .char = 17}},
+        .{.kind = .{.@"("      = void{}},        .location = .{.line =  4, .char = 21}},
+        .{.kind = .{.@")"      = void{}},        .location = .{.line =  4, .char = 22}},
+        .{.kind = .{.word      = "UInt32" },     .location = .{.line =  4, .char = 24}},
+        .{.kind = .{.@"{"      = void{}},        .location = .{.line =  4, .char = 31}},
+        .{.kind = .{.tmp       = void{}},        .location = .{.line =  5, .char =  9}},
+        .{.kind = .{.lcl_id    = "r" },          .location = .{.line =  5, .char = 14}},
+        .{.kind = .{.word      = "UInt32" },     .location = .{.line =  5, .char = 16}},
+        .{.kind = .{.lcl_id    = "r" },          .location = .{.line =  6, .char = 10}},
+        .{.kind = .{.@"="      = void{}},        .location = .{.line =  6, .char = 12}},
+        .{.kind = .{.gbl_id    = "puts" },       .location = .{.line =  6, .char = 15}},
+        .{.kind = .{.@"("      = void{}},        .location = .{.line =  6, .char = 19}},
+        .{.kind = .{.gbl_id    = "fmt" },        .location = .{.line =  6, .char = 21}},
+        .{.kind = .{.@","      = void{}},        .location = .{.line =  6, .char = 24}},
+        .{.kind = .{.@")"      = void{}},        .location = .{.line =  6, .char = 26}},
+        .{.kind = .{.@"return" = void{}},        .location = .{.line =  7, .char =  9}},
+        .{.kind = .{.lcl_id    = "r" },          .location = .{.line =  7, .char = 17}},
+        .{.kind = .{.@"}"      = void{}},        .location = .{.line =  8, .char =  5}},
+        .{.kind = .{.@"}"      = void{}},        .location = .{.line =  9, .char =  1}},
+        .{.kind = .{.eof       = void{}},        .location = .{.line = 10, .char =  1}},
+    };
+
+    var tokens = try std.ArrayList(Token).initCapacity(alloc.allocator(), 100);
+
+    var tokenizer = Tokenizer{.source = string};
+    try tokens.append(try tokenizer.tokenize(alloc.allocator()));
+
+    while (tokens.getLast().kind != TokenKind.eof) {
+        try tokens.append(try tokenizer.tokenize(alloc.allocator()));
+    }
+
+    const actual: []Token = try tokens.toOwnedSlice();
+    
+    // Partly from std.testing.expectEqualDeep:
+    for (expected, actual[0..expected.len], 0..) |e, a, i| {
+        const Tag = std.meta.Tag(@TypeOf(e.kind));
+        std.testing.expectEqual(@as(Tag, e.kind), @as(Tag, a.kind)) catch {
+            std.debug.panic("Incorrect tag at i: {d}, expected: {s}, actual: {s}\n", .{i, @tagName(e.kind), @tagName(a.kind)});
+        };
+    }
+    for (expected, actual[0..expected.len], 0..) |e, a, i| {
+        switch (e.kind) {
+            inline else => |e_val, e_tag| {
+                if (@TypeOf(e_val) == [*:0]const u8) {
+                    const e_str = @as([*:0]const u8, e_val);
+                    const a_str = @as([*:0]const u8, @field(a.kind, @tagName(e_tag)));
+                    if (std.mem.orderZ(u8, e_str, a_str) != std.math.Order.eq) {
+                        std.debug.panic("Incorrect string at i: {d}, expected: {s}, actual: {s} kind: {s}\n", .{i, e_str, a_str, @tagName(a.kind)});
+                    }
+                }
+            }
+        }
+    }
+    for (expected, actual[0..expected.len], 0..) |e, a, i| {
+        std.testing.expectEqual(e.location, a.location) catch {
+            std.debug.panic("Incorrect location at i: {d}, expected: {}, actual: {} kind: {s}\n", .{i, e.location, a.location, @tagName(a.kind)});
+        };
+    }
+
+    if (expected.len != actual.len) {
+        std.debug.print("Expected length: {d}, found: {d}\n", .{expected.len, actual.len});
+        try testing.expect(false);
+    }
+
+    alloc.reset();
 }
 
