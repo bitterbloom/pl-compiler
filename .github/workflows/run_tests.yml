@@ -39,6 +39,9 @@ jobs:
           echo "$(pwd)/mingw64/bin" >> $GITHUB_PATH
       - name: Install QBE/winabi
         run: |
+          cc --version
+          make --version
+          pacman -S --noconfirm make
           git clone git://c9x.me/qbe.git --branch winabi --depth 1
           cd qbe
           make
