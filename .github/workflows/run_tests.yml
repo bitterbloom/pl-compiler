@@ -38,8 +38,8 @@ jobs:
           pwd
           echo INFO: cat $GITHUB_PATH
           cat $GITHUB_PATH
-          echo INFO: $(pwd)/zig-windows-x86_64-0.11.0 >> \$GITHUB_PATH
-          echo "$(pwd)/zig-windows-x86_64-0.11.0" >> $GITHUB_PATH
+          echo INFO: $HOME/zig-windows-x86_64-0.11.0 >> \$GITHUB_PATH
+          echo "$HOME/zig-windows-x86_64-0.11.0" >> $GITHUB_PATH
           echo INFO: cat $GITHUB_PATH
           cat $GITHUB_PATH
           echo INFO: zig version
