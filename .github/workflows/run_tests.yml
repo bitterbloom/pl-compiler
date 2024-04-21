@@ -32,8 +32,10 @@ jobs:
           # zig 0.11.0 should be installed under ./zig-windows-x86_64-0.11.0/zig.exe
           echo INFO: ls ./zig-windows-x86_64-0.11.0
           ls ./zig-windows-x86_64-0.11.0
-          echo INFO: $HOME/zig-windows-x86_64-0.11.0 >> \$GITHUB_PATH
+          echo "INFO: $HOME"
+          echo "INFO: $CD"
           echo "$HOME/zig-windows-x86_64-0.11.0" >> $GITHUB_PATH
+          echo "$CD/zig-windows-x86_64-0.11.0" >> $GITHUB_PATH
       - name: Check Zig
         run: |
           echo INFO: zig version
