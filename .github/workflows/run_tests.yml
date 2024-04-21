@@ -40,8 +40,6 @@ jobs:
           ls -r ./mingw64/bin
       - name: Install QBE/winabi
         run: |
-          make --version
-          pacman -S --noconfirm make
           git clone git://c9x.me/qbe.git --branch winabi --depth 1
           cd qbe
           make CC=gcc
