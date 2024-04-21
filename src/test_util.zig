@@ -5,7 +5,7 @@ const alloc = testing.allocator;
 pub fn testCompileAndRun(expected: []const u8, source: []const u8) !void {
     const dir = testing.tmpDir(.{}).dir;
     const dir_path = try dir.realpathAlloc(alloc, ".");
-    alloc.free(dir_path);
+    defer alloc.free(dir_path);
     const qbe_file_name = "./test.qbe";
     const asm_file_name = "./test.s";
     const exe_file_name = "./test";
