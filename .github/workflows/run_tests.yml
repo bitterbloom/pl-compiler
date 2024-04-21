@@ -30,7 +30,15 @@ jobs:
           curl -L https://ziglang.org/download/0.11.0/zig-windows-x86_64-0.11.0.zip -o ./zig.zip
           7z x zig.zip
           # zig 0.11.0 should be installed under ./zig-windows-x86_64-0.11.0/zig.exe
+          echo ls
+          ls
+          echo GITHUB_PATH
+          echo $GITHUB_PATH
+          echo pwd
+          pwd
+          echo set path
           echo "$(pwd)/zig-windows-x86_64-0.11.0" >> $GITHUB_PATH
+          echo zig version
           zig version
       - name: Install GCC 13.2.0
         run: |
